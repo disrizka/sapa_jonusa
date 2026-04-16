@@ -48,7 +48,7 @@ class _KaryawanHomeScreenState extends State<KaryawanHomeScreen>
   final _storage = const FlutterSecureStorage();
   int _selectedIndex = 0;
   bool _isLoggingOut = false;
-  int _unreadCount = 0; // Tambahkan ini
+  int _unreadCount = 0;
   Timer? _notifTimer;
   int get unreadCount => _unreadCount;
   int _lastNotifCount = 0;
@@ -57,7 +57,6 @@ class _KaryawanHomeScreenState extends State<KaryawanHomeScreen>
   void initState() {
     super.initState();
     _fetchNotifications();
-    // Cek notifikasi setiap 10 detik agar tidak berat
     _notifTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
       if (mounted) _fetchNotifications();
     });
@@ -1264,13 +1263,6 @@ class _MenuGridState extends State<_MenuGrid> {
         iconColor: Color(0xFF1565C0),
         isAbsen: true,
       ),
-      const _MenuDef(
-        icon: Icons.flight_takeoff_rounded,
-        label: 'Izin & Cuti',
-        bg: Color(0xFFFFF8E1),
-        iconColor: Color(0xFFF57C00),
-      ),
-
       const _MenuDef(
         icon: Icons.calendar_month_rounded,
         label: 'Kalender',

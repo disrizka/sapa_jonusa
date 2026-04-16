@@ -178,23 +178,18 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen>
 
   void _applyFilter() {
     setState(() {
-      _filtered =
-          _selectedStatus == 'semua'
-              ? List.from(_allRecords)
-              : _allRecords
-                  .where((r) => r.isApproved == _selectedStatus)
-                  .toList();
+      _filtered = _selectedStatus == 'semua'
+          ? List.from(_allRecords)
+          : _allRecords.where((r) => r.isApproved == _selectedStatus).toList();
     });
   }
 
-  int get _totalHadir =>
-      _allRecords
-          .where((r) => r.isApproved == 'approved' && r.checkOut != null)
-          .length;
-  int get _totalBelumOut =>
-      _allRecords
-          .where((r) => r.isApproved == 'approved' && r.checkOut == null)
-          .length;
+  int get _totalHadir => _allRecords
+      .where((r) => r.isApproved == 'approved' && r.checkOut != null)
+      .length;
+  int get _totalBelumOut => _allRecords
+      .where((r) => r.isApproved == 'approved' && r.checkOut == null)
+      .length;
   int get _totalPending =>
       _allRecords.where((r) => r.isApproved == 'pending').length;
   int get _totalDitolak =>
@@ -207,130 +202,124 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen>
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder:
-          (ctx) => StatefulBuilder(
-            builder:
-                (ctx, setModalState) => Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(28),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const Text(
+                'Pilih Bulan & Tahun',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: _kText,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _YearButton(
+                    icon: Icons.chevron_left_rounded,
+                    onTap: () => setModalState(() => tempYear--),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Text(
+                      '$tempYear',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: _kPrimary,
+                      ),
                     ),
                   ),
-                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 4,
-                        margin: const EdgeInsets.only(bottom: 20),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade200,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
+                  _YearButton(
+                    icon: Icons.chevron_right_rounded,
+                    onTap: () => setModalState(() => tempYear++),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 4,
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                  childAspectRatio: 1.8,
+                ),
+                itemCount: 12,
+                itemBuilder: (_, i) {
+                  final selected = i + 1 == tempMonth;
+                  return GestureDetector(
+                    onTap: () => setModalState(() => tempMonth = i + 1),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? _kPrimary
+                            : _kPrimary.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      const Text(
-                        'Pilih Bulan & Tahun',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: _kText,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _YearButton(
-                            icon: Icons.chevron_left_rounded,
-                            onTap: () => setModalState(() => tempYear--),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: Text(
-                              '$tempYear',
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w900,
-                                color: _kPrimary,
-                              ),
-                            ),
-                          ),
-                          _YearButton(
-                            icon: Icons.chevron_right_rounded,
-                            onTap: () => setModalState(() => tempYear++),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 4,
-                              mainAxisSpacing: 8,
-                              crossAxisSpacing: 8,
-                              childAspectRatio: 1.8,
-                            ),
-                        itemCount: 12,
-                        itemBuilder: (_, i) {
-                          final selected = i + 1 == tempMonth;
-                          return GestureDetector(
-                            onTap: () => setModalState(() => tempMonth = i + 1),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 150),
-                              decoration: BoxDecoration(
-                                color:
-                                    selected
-                                        ? _kPrimary
-                                        : _kPrimary.withOpacity(0.06),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  _months[i].substring(0, 3),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: selected ? Colors.white : _kText,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 20),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: _kPrimary,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
-                          onPressed: () {
-                            Navigator.pop(ctx);
-                            setState(() {
-                              _selectedMonth = tempMonth;
-                              _selectedYear = tempYear;
-                            });
-                            _fetchHistory();
-                          },
-                          child: const Text(
-                            'Tampilkan',
-                            style: TextStyle(fontWeight: FontWeight.w700),
+                      child: Center(
+                        child: Text(
+                          _months[i].substring(0, 3),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: selected ? Colors.white : _kText,
                           ),
                         ),
                       ),
-                    ],
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _kPrimary,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    setState(() {
+                      _selectedMonth = tempMonth;
+                      _selectedYear = tempYear;
+                    });
+                    _fetchHistory();
+                  },
+                  child: const Text(
+                    'Tampilkan',
+                    style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
+              ),
+            ],
           ),
+        ),
+      ),
     );
   }
 
@@ -513,51 +502,49 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen>
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
-          children:
-              statusList.map((s) {
-                final active = _selectedStatus == s.$1;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: GestureDetector(
-                    onTap: () {
-                      setState(() => _selectedStatus = s.$1);
-                      _applyFilter();
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: active ? _kPrimary : Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: active ? _kPrimary : Colors.grey.shade200,
-                        ),
-                        boxShadow:
-                            active
-                                ? [
-                                  BoxShadow(
-                                    color: _kPrimary.withOpacity(0.3),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 3),
-                                  ),
-                                ]
-                                : [],
-                      ),
-                      child: Text(
-                        s.$2,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: active ? Colors.white : _kSub,
-                        ),
-                      ),
+          children: statusList.map((s) {
+            final active = _selectedStatus == s.$1;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: GestureDetector(
+                onTap: () {
+                  setState(() => _selectedStatus = s.$1);
+                  _applyFilter();
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: active ? _kPrimary : Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: active ? _kPrimary : Colors.grey.shade200,
+                    ),
+                    boxShadow: active
+                        ? [
+                            BoxShadow(
+                              color: _kPrimary.withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ]
+                        : [],
+                  ),
+                  child: Text(
+                    s.$2,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: active ? Colors.white : _kSub,
                     ),
                   ),
-                );
-              }).toList(),
+                ),
+              ),
+            );
+          }).toList(),
         ),
       ),
     );
@@ -595,14 +582,12 @@ class _AttendanceCard extends StatelessWidget {
 
   Color get _statusOutColor =>
       record.checkOut == null ? _kGray : _statusColor(record.isApprovedOut);
-  IconData get _statusOutIcon =>
-      record.checkOut == null
-          ? Icons.schedule_rounded
-          : _statusIcon(record.isApprovedOut);
-  String get _statusOutLabel =>
-      record.checkOut == null
-          ? 'Belum Checkout'
-          : _statusLabel(record.isApprovedOut);
+  IconData get _statusOutIcon => record.checkOut == null
+      ? Icons.schedule_rounded
+      : _statusIcon(record.isApprovedOut);
+  String get _statusOutLabel => record.checkOut == null
+      ? 'Belum Checkout'
+      : _statusLabel(record.isApprovedOut);
 
   static Color _statusColor(String s) {
     switch (s) {
@@ -967,12 +952,14 @@ class _TimeInfo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment:
-          alignRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      crossAxisAlignment: alignRight
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment:
-              alignRight ? MainAxisAlignment.end : MainAxisAlignment.start,
+          mainAxisAlignment: alignRight
+              ? MainAxisAlignment.end
+              : MainAxisAlignment.start,
           children: [
             if (!alignRight) ...[
               Icon(icon, size: 11, color: color),

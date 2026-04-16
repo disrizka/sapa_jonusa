@@ -2,11 +2,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sapa_jonusa/api/api.dart' as Api;
-
-
 
 class SakitScreen extends StatefulWidget {
   const SakitScreen({super.key});
@@ -21,33 +20,32 @@ class _SakitScreenState extends State<SakitScreen> {
 
   DateTime? _startDate;
   DateTime? _endDate;
-  File? _imageFile;
+  File? _imageFile; // Untuk Foto Kamera
+  File? _docFile; // Untuk Dokumen PDF
   bool _loading = false;
 
-  // Fungsi buka Kamera langsung
   Future<void> _takePhoto() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(
+    final picked = await ImagePicker().pickImage(
       source: ImageSource.camera,
       imageQuality: 50,
     );
-
-    if (pickedFile != null) {
-      setState(() => _imageFile = File(pickedFile.path));
-    }
+    if (picked != null) setState(() => _imageFile = File(picked.path));
   }
 
-  // Bagian fungsi _submitSakit yang sudah diperbaiki total
+  Future<void> _pickDocument() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'doc', 'docx'],
+    );
+    if (result != null)
+      setState(() => _docFile = File(result.files.single.path!));
+  }
+
   Future<void> _submitSakit() async {
     if (_startDate == null ||
         _reasonController.text.isEmpty ||
-        _imageFile == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Lengkapi form & Foto Surat Dokter!"),
-          backgroundColor: Colors.red,
-        ),
-      );
+        (_imageFile == null && _docFile == null)) {
+      _showSnackBar("Lengkapi form & Minimal kirim 1 Lampiran!", isError: true);
       return;
     }
 
@@ -64,158 +62,154 @@ class _SakitScreenState extends State<SakitScreen> {
         'Accept': 'application/json',
       });
 
-      // SINKRONISASI FIELD DENGAN LARAVEL & BLADE WEB
-      // Di dalam fungsi _submitSakit()
-      request.fields['category'] = 'sakit'; // PASTIKAN HURUF KECIL SEMUA
-      request.fields['start_date'] = DateFormat(
-        'yyyy-MM-dd',
-      ).format(_startDate!);
-      request.fields['reason'] = _reasonController.text;
-
-      // Field pendukung durasi
+      request.fields['category'] = 'sakit';
       request.fields['start_date'] = DateFormat(
         'yyyy-MM-dd',
       ).format(_startDate!);
       request.fields['end_date'] = DateFormat(
         'yyyy-MM-dd',
       ).format(_endDate ?? _startDate!);
+      request.fields['reason'] = _reasonController.text;
 
-      // Key lampiran harus 'attachment' agar link "Lihat Dokumen" di Web aktif
-      request.files.add(
-        await http.MultipartFile.fromPath('attachment', _imageFile!.path),
-      );
+      // Kirim Foto ke kolom attachment_photo
+      if (_imageFile != null) {
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'attachment_photo',
+            _imageFile!.path,
+          ),
+        );
+      }
+
+      // Kirim Dokumen ke kolom attachment_file
+      if (_docFile != null) {
+        request.files.add(
+          await http.MultipartFile.fromPath('attachment_file', _docFile!.path),
+        );
+      }
 
       var streamedResponse = await request.send();
       var response = await http.Response.fromStream(streamedResponse);
 
-      if (streamedResponse.statusCode == 201 ||
-          streamedResponse.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Laporan sakit berhasil dikirim"),
-            backgroundColor: Colors.green,
-          ),
-        );
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        _showSnackBar("Laporan berhasil dikirim", isError: false);
         Navigator.pop(context);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "Gagal mengirim laporan. Periksa koneksi/absen harian.",
-            ),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        _showSnackBar("Gagal mengirim laporan.", isError: true);
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Error: $e")));
+      _showSnackBar("Error: $e", isError: true);
     } finally {
       setState(() => _loading = false);
     }
+  }
+
+  void _showSnackBar(String msg, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: isError ? Colors.red : Colors.green,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          "Laporan Sakit",
-          style: TextStyle(color: Colors.white),
-        ),
+        title: const Text("Laporan Sakit"),
         backgroundColor: Colors.redAccent,
-        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          const Text(
-            "Informasi Sakit",
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-          ),
-          const SizedBox(height: 20),
           _dateTile(
             "Mulai Sakit",
             _startDate,
             (d) => setState(() => _startDate = d),
           ),
           _dateTile(
-            "Selesai/Masuk Kembali",
+            "Selesai Sakit",
             _endDate,
             (d) => setState(() => _endDate = d),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 15),
           TextField(
             controller: _reasonController,
             decoration: const InputDecoration(
-              labelText: "Keterangan/Alasan Sakit",
+              labelText: "Alasan",
               border: OutlineInputBorder(),
-              hintText: "Contoh: Demam tinggi dan pusing",
             ),
-            maxLines: 3,
+            maxLines: 2,
           ),
-          const SizedBox(height: 25),
+          const SizedBox(height: 20),
+
           const Text(
-            "Bukti Surat Dokter (Wajib)",
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            "Lampiran (Wajib salah satu)",
+            style: TextStyle(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 10),
-
-          GestureDetector(
-            onTap: _takePhoto,
-            child: Container(
-              height: 200,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade300, width: 2),
+          Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: _takePhoto,
+                  child: Container(
+                    height: 100,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: _imageFile == null
+                        ? const Icon(Icons.camera_alt, size: 30)
+                        : Image.file(_imageFile!, fit: BoxFit.cover),
+                  ),
+                ),
               ),
-              child:
-                  _imageFile == null
-                      ? Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.camera_alt,
-                            size: 50,
-                            color: Colors.redAccent.withOpacity(0.5),
+              const SizedBox(width: 10),
+              Expanded(
+                child: InkWell(
+                  onTap: _pickDocument,
+                  child: Container(
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: Colors.blueGrey[50],
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: _docFile == null
+                        ? const Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.file_present),
+                              Text("Pilih PDF", style: TextStyle(fontSize: 10)),
+                            ],
+                          )
+                        : const Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.check_circle, color: Colors.green),
+                              Text(
+                                "PDF Terpilih",
+                                style: TextStyle(fontSize: 10),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 10),
-                          const Text(
-                            "Ambil Foto Surat Dokter",
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                        ],
-                      )
-                      : ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Image.file(_imageFile!, fit: BoxFit.cover),
-                      ),
-            ),
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 35),
+          const SizedBox(height: 30),
           ElevatedButton(
             onPressed: _loading ? null : _submitSakit,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.redAccent,
-              foregroundColor: Colors.white,
-              minimumSize: const Size(double.infinity, 55),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
+              minimumSize: const Size(double.infinity, 50),
             ),
-            child:
-                _loading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text(
-                      "KIRIM LAPORAN SAKIT",
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
+            child: _loading
+                ? const CircularProgressIndicator(color: Colors.white)
+                : const Text("KIRIM LAPORAN"),
           ),
         ],
       ),
@@ -223,29 +217,20 @@ class _SakitScreenState extends State<SakitScreen> {
   }
 
   Widget _dateTile(String label, DateTime? date, Function(DateTime) onPick) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(10),
+    return ListTile(
+      title: Text(
+        date == null ? label : DateFormat('dd MMMM yyyy').format(date),
       ),
-      child: ListTile(
-        title: Text(
-          date == null ? label : DateFormat('dd MMMM yyyy').format(date),
-        ),
-        trailing: const Icon(Icons.calendar_month, color: Colors.redAccent),
-        onTap: () async {
-          var picked = await showDatePicker(
-            context: context,
-            initialDate: DateTime.now(),
-            firstDate: DateTime.now().subtract(
-              const Duration(days: 7),
-            ), // Maksimal telat lapor 7 hari
-            lastDate: DateTime(2030),
-          );
-          if (picked != null) onPick(picked);
-        },
-      ),
+      trailing: const Icon(Icons.calendar_month),
+      onTap: () async {
+        var p = await showDatePicker(
+          context: context,
+          initialDate: DateTime.now(),
+          firstDate: DateTime(2025),
+          lastDate: DateTime(2030),
+        );
+        if (p != null) onPick(p);
+      },
     );
   }
 }

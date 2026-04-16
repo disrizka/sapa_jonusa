@@ -10,7 +10,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:sapa_jonusa/api/api.dart' as Api;
 
-// ─── Color Palette ─────────────────────────────────────────────────────────
+// ─── Color Palette ──────────────────────────────────────────────────────────
 const kPrimaryBlue = Color(0xFF1565C0);
 const kAccentBlue = Color(0xFF1E88E5);
 const kLightBlue = Color(0xFFE3F2FD);
@@ -18,7 +18,8 @@ const kDeepBlue = Color(0xFF0D47A1);
 const kSkyBlue = Color(0xFF42A5F5);
 const kSuccessGreen = Color(0xFF00897B);
 const kErrorRed = Color(0xFFE53935);
-// ───────────────────────────────────────────────────────────────────────────
+const kAmber = Color(0xFFF57C00);
+// ────────────────────────────────────────────────────────────────────────────
 
 class CheckinScreen extends StatefulWidget {
   const CheckinScreen({super.key});
@@ -36,29 +37,56 @@ class _CheckinScreenState extends State<CheckinScreen>
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
-  // Konfigurasi Kantor & Waktu
+  // ── Office Config ──────────────────────────────────────────────────────────
   double _officeLat = -6.2000;
   double _officeLng = 106.8166;
   double _officeRadius = 50.0;
   String _checkInLimit = "08:00";
   int _tolerance = 0;
 
-  bool _isLoading = true;
+  // ── Holiday ────────────────────────────────────────────────────────────────
+  bool _isHoliday = false;
+  String _holidayName = "";
+
+  // ── Radius Enforcement ────────────────────────────────────────────────────
+  // true  → WAJIB dalam radius; di luar radius = TOMBOL DIBLOKIR (tidak bisa submit)
+  // false → bebas dari mana saja, tapi hasil absensi = pending approval admin
+  bool _isRadiusEnforced = true;
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  bool _isLoading = false;
   bool _isSubmitting = false;
   bool _isLate = false;
-  bool _isHoliday = false; // Status apakah hari ini libur
-  String _holidayName = ""; // Nama hari libur
+  bool _isInRadius = false;
 
   String _currentAddress = "Mencari lokasi...";
   LatLng? _currentPosition;
   double? _distanceFromOffice;
-  bool _isInRadius = false;
   File? _imageFile;
+
+  // ── Computed ───────────────────────────────────────────────────────────────
+
+  // Apakah lokasi menyebabkan BLOKIR submit:
+  // → hanya ter-blokir jika radius ENFORCEMENT ON dan user DI LUAR radius
+  bool get _isBlockedByRadius => _isRadiusEnforced && !_isInRadius;
+
+  // Auto-approve: hanya jika radius ON, dalam radius, tepat waktu, bukan libur
+  bool get _willAutoApprove =>
+      !_isHoliday && !_isLate && _isRadiusEnforced && _isInRadius;
+
+  // Tombol aktif
+  bool get _canSubmit =>
+      _imageFile != null &&
+      !_isHoliday &&
+      !_isLate &&
+      !_isBlockedByRadius && // ← kunci: blokir jika enforcement ON & luar radius
+      !_isSubmitting &&
+      _currentPosition != null;
 
   @override
   void initState() {
     super.initState();
-    _fetchOfficeConfig();
+    debugPrint('=== CHECKIN SCREEN INIT ===');
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -77,6 +105,7 @@ class _CheckinScreenState extends State<CheckinScreen>
   }
 
   Future<void> _init() async {
+    setState(() => _isLoading = true);
     await _fetchOfficeConfig();
     await _fetchLocation();
   }
@@ -84,6 +113,11 @@ class _CheckinScreenState extends State<CheckinScreen>
   Future<void> _fetchOfficeConfig() async {
     try {
       final token = await _storage.read(key: 'auth_token');
+
+      if (token == null || token.isEmpty) {
+        return;
+      }
+
       final response = await http.get(
         Uri.parse('${Api.baseUrl}/api/attendance/config'),
         headers: {
@@ -93,31 +127,28 @@ class _CheckinScreenState extends State<CheckinScreen>
       );
 
       if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-
-        // Ambil objek data dari dalam key 'data'
-        final data = responseData['data'];
-
+        final data = json.decode(response.body)['data'];
         setState(() {
           _officeLat = double.parse(data['latitude'].toString());
           _officeLng = double.parse(data['longitude'].toString());
           _officeRadius = double.parse(data['radius'].toString());
-
-          // FIX: Pastikan parsing boolean dan string aman
+          _checkInLimit = (data['check_in_time']?.toString() ?? '08:00')
+              .split(':')
+              .take(2)
+              .join(':');
+          _tolerance =
+              int.tryParse(data['late_tolerance']?.toString() ?? '0') ?? 0;
           _isHoliday = data['is_holiday'] == true;
-          _holidayName = data['holiday_name']?.toString() ?? "";
-
-          String rawTime = data['check_in_time']?.toString() ?? "08:00";
-          _checkInLimit =
-              rawTime.length >= 5 ? rawTime.substring(0, 5) : rawTime;
-          _tolerance = int.parse(data['late_tolerance']?.toString() ?? "0");
-
-          _validateTime();
+          _holidayName = data['holiday_name']?.toString() ?? '';
+          _isRadiusEnforced = data['radius_enforced'] != false;
         });
-
-        // Re-validate radius setelah config masuk
-        if (_currentPosition != null) {
-          _validateRadius(_currentPosition!);
+        _validateTime();
+        if (_currentPosition != null) _validateRadius(_currentPosition!);
+      } else if (response.statusCode == 401) {
+        // Token expired/invalid → paksa logout
+        await _storage.deleteAll();
+        if (mounted) {
+          Navigator.of(context).pushNamedAndRemoveUntil('/login', (r) => false);
         }
       }
     } catch (e) {
@@ -127,55 +158,61 @@ class _CheckinScreenState extends State<CheckinScreen>
 
   void _validateTime() {
     final now = DateTime.now();
-
     final parts = _checkInLimit.split(':');
     if (parts.length < 2) return;
-
-    final limitTime = DateTime(
+    final limit = DateTime(
       now.year,
       now.month,
       now.day,
       int.parse(parts[0]),
       int.parse(parts[1]),
     );
-
-    final finalDeadline = limitTime.add(Duration(minutes: _tolerance));
-
-    setState(() {
-      _isLate = now.isAfter(finalDeadline);
-    });
+    final deadline = limit.add(Duration(minutes: _tolerance));
+    setState(() => _isLate = now.isAfter(deadline));
   }
 
   Future<void> _fetchLocation() async {
     setState(() => _isLoading = true);
     try {
-      Position position = await Geolocator.getCurrentPosition(
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) throw 'GPS tidak aktif. Silakan aktifkan GPS.';
+
+      LocationPermission perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+        if (perm == LocationPermission.denied) throw 'Izin lokasi ditolak.';
+      }
+      if (perm == LocationPermission.deniedForever) {
+        throw 'Izin lokasi ditolak permanen.';
+      }
+
+      final pos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
-      final latLng = LatLng(position.latitude, position.longitude);
+      final ll = LatLng(pos.latitude, pos.longitude);
       setState(() {
-        _currentPosition = latLng;
+        _currentPosition = ll;
         _isLoading = false;
       });
-      _validateRadius(latLng);
-      _moveCamera(latLng);
-      _getAddressFromLatLng(latLng);
+      _validateRadius(ll);
+      _moveCamera(ll);
+      _getAddressFromLatLng(ll);
     } catch (e) {
       setState(() => _isLoading = false);
       _showSnackBar("Gagal mengambil lokasi: $e", isError: true);
     }
   }
 
-  void _validateRadius(LatLng position) {
-    double distance = Geolocator.distanceBetween(
-      position.latitude,
-      position.longitude,
+  void _validateRadius(LatLng pos) {
+    final d = Geolocator.distanceBetween(
+      pos.latitude,
+      pos.longitude,
       _officeLat,
       _officeLng,
     );
     setState(() {
-      _distanceFromOffice = distance;
-      _isInRadius = distance <= _officeRadius;
+      _distanceFromOffice = d;
+      _isInRadius = d <= _officeRadius;
     });
   }
 
@@ -189,59 +226,64 @@ class _CheckinScreenState extends State<CheckinScreen>
   }
 
   Future<void> _submitCheckIn() async {
-    if (_isHoliday) {
-      _showSnackBar(
-        "Tidak dapat absen, hari ini adalah $_holidayName!",
-        isError: true,
-      );
-      return;
-    }
-    if (_isLate) {
-      _showSnackBar("Maaf, waktu masuk sudah ditutup!", isError: true);
-      return;
-    }
     setState(() => _isSubmitting = true);
     try {
       final token = await _storage.read(key: 'auth_token');
-      var request = http.MultipartRequest(
+      var req = http.MultipartRequest(
         'POST',
         Uri.parse('${Api.baseUrl}/api/presence/check-in'),
       );
-      request.headers.addAll({
+
+      // ← TAMBAH INI
+      req.headers.addAll({
         'Authorization': 'Bearer $token',
         'Accept': 'application/json',
       });
-      request.fields['latitude'] = _currentPosition!.latitude.toString();
-      request.fields['longitude'] = _currentPosition!.longitude.toString();
-      request.fields['notes'] =
-          _notesController.text.isEmpty
-              ? 'Absen Masuk Mobile'
-              : _notesController.text;
-      request.files.add(
+
+      req.fields['latitude'] = _currentPosition!.latitude.toString();
+      req.fields['longitude'] = _currentPosition!.longitude.toString();
+      req.fields['notes'] = _notesController.text.isEmpty
+          ? 'Absen Masuk Mobile'
+          : _notesController.text;
+      req.files.add(
         await http.MultipartFile.fromPath('photo', _imageFile!.path),
       );
 
-      var res = await request.send();
-      var response = await http.Response.fromStream(res);
-      final body = json.decode(response.body);
+      final res = await req.send();
+      final resp = await http.Response.fromStream(res);
+      final body = json.decode(resp.body);
 
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        _showSnackBar(body['message'] ?? "Berhasil!");
-        Future.delayed(
-          const Duration(milliseconds: 800),
-          () => Navigator.pop(context, true),
+      if (resp.statusCode == 201 || resp.statusCode == 200) {
+        _showSuccessDialog(
+          autoApproved: body['auto_approved'] == true,
+          message: body['message'] ?? 'Berhasil!',
+          reason: body['reason'] ?? '',
         );
       } else {
-        _showSnackBar(body['message'] ?? "Gagal Absen", isError: true);
+        _showSnackBar(body['message'] ?? 'Gagal Absen', isError: true);
       }
     } catch (e) {
-      _showSnackBar("Kesalahan koneksi.", isError: true);
+      _showSnackBar('Kesalahan koneksi.', isError: true);
     } finally {
       setState(() => _isSubmitting = false);
     }
   }
 
-  // ─── Helpers ───────────────────────────────────────────────────────────────
+  // ─── Helpers ─────────────────────────────────────────────────────────────
+  void _moveCamera(LatLng pos) async {
+    final c = await _controller.future;
+    c.animateCamera(CameraUpdate.newLatLngZoom(pos, 17));
+  }
+
+  Future<void> _getAddressFromLatLng(LatLng pos) async {
+    try {
+      final p = await placemarkFromCoordinates(pos.latitude, pos.longitude);
+      setState(
+        () => _currentAddress = '${p.first.street}, ${p.first.locality}',
+      );
+    } catch (_) {}
+  }
+
   void _showSnackBar(String msg, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -264,39 +306,186 @@ class _CheckinScreenState extends State<CheckinScreen>
     );
   }
 
-  void _moveCamera(LatLng pos) async {
-    final c = await _controller.future;
-    c.animateCamera(CameraUpdate.newLatLngZoom(pos, 17));
+  void _showSuccessDialog({
+    required bool autoApproved,
+    required String message,
+    required String reason,
+  }) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: autoApproved
+                      ? kSuccessGreen.withOpacity(0.12)
+                      : kAmber.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  autoApproved
+                      ? Icons.verified_rounded
+                      : Icons.pending_actions_rounded,
+                  color: autoApproved ? kSuccessGreen : kAmber,
+                  size: 38,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: autoApproved
+                      ? kSuccessGreen.withOpacity(0.1)
+                      : kAmber.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: autoApproved
+                        ? kSuccessGreen.withOpacity(0.3)
+                        : kAmber.withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      autoApproved
+                          ? Icons.check_circle
+                          : Icons.schedule_rounded,
+                      color: autoApproved ? kSuccessGreen : kAmber,
+                      size: 13,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      autoApproved
+                          ? 'DISETUJUI OTOMATIS ✓'
+                          : 'MENUNGGU PERSETUJUAN ADMIN',
+                      style: TextStyle(
+                        color: autoApproved ? kSuccessGreen : kAmber,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1A237E),
+                ),
+              ),
+              if (reason.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  reason,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF78909C),
+                    height: 1.5,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFE),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blue.shade100),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      autoApproved
+                          ? Icons.info_outline
+                          : Icons.admin_panel_settings_outlined,
+                      color: kAccentBlue,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        autoApproved
+                            ? 'Absensi langsung tercatat disetujui. Cek di halaman Riwayat.'
+                            : 'Absensi menunggu persetujuan admin. Cek status di halaman Riwayat.',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF546E7A),
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [kDeepBlue, kAccentBlue],
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      Navigator.of(context).pop(true);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'OK, Selesai',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
-  Future<void> _getAddressFromLatLng(LatLng position) async {
-    try {
-      List<Placemark> p = await placemarkFromCoordinates(
-        position.latitude,
-        position.longitude,
-      );
-      setState(
-        () => _currentAddress = '${p.first.street}, ${p.first.locality}',
-      );
-    } catch (_) {}
-  }
-
-  // ─── BUILD ─────────────────────────────────────────────────────────────────
+  // ─── BUILD ────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final canSubmit =
-        _isInRadius &&
-        _imageFile != null &&
-        !_isLate &&
-        !_isSubmitting &&
-        !_isHoliday;
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: const Text(
-          "Presensi Masuk",
+          'Presensi Masuk',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w700,
@@ -316,7 +505,7 @@ class _CheckinScreenState extends State<CheckinScreen>
           ),
         ),
       ),
-      body: _isLoading ? _buildLoadingScreen() : _buildMapBody(canSubmit),
+      body: _isLoading ? _buildLoadingScreen() : _buildMapBody(),
     );
   }
 
@@ -352,7 +541,7 @@ class _CheckinScreenState extends State<CheckinScreen>
             ),
             const SizedBox(height: 24),
             const Text(
-              "Mendeteksi Lokasi...",
+              'Mendeteksi Lokasi...',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 16,
@@ -361,7 +550,7 @@ class _CheckinScreenState extends State<CheckinScreen>
             ),
             const SizedBox(height: 6),
             Text(
-              "Mohon tunggu sebentar",
+              'Mohon tunggu sebentar',
               style: TextStyle(
                 color: Colors.white.withOpacity(0.7),
                 fontSize: 13,
@@ -373,8 +562,7 @@ class _CheckinScreenState extends State<CheckinScreen>
     );
   }
 
-  Widget _buildMapBody(bool canSubmit) {
-    // TAMBAHKAN PENGECEKAN INI:
+  Widget _buildMapBody() {
     if (_currentPosition == null) {
       return const Center(
         child: Column(
@@ -382,19 +570,17 @@ class _CheckinScreenState extends State<CheckinScreen>
           children: [
             Icon(Icons.location_off, color: Colors.red, size: 50),
             SizedBox(height: 10),
-            Text("Gagal mendapatkan koordinat lokasi."),
+            Text('Gagal mendapatkan koordinat lokasi.'),
           ],
         ),
       );
     }
-
     return Stack(
       children: [
         GoogleMap(
           myLocationEnabled: true,
           initialCameraPosition: CameraPosition(
-            target:
-                _currentPosition!, // Sekarang aman karena sudah dicek di atas
+            target: _currentPosition!,
             zoom: 17,
           ),
           onMapCreated: (c) => _controller.complete(c),
@@ -403,24 +589,24 @@ class _CheckinScreenState extends State<CheckinScreen>
               circleId: const CircleId('office'),
               center: LatLng(_officeLat, _officeLng),
               radius: _officeRadius,
-              fillColor: kAccentBlue.withOpacity(0.15),
-              strokeColor: kAccentBlue,
+              // Merah jika enforcement ON (wajib), oranye jika OFF (bebas tapi pending)
+              fillColor: _isRadiusEnforced
+                  ? kAccentBlue.withOpacity(0.15)
+                  : Colors.orange.withOpacity(0.10),
+              strokeColor: _isRadiusEnforced ? kAccentBlue : Colors.orange,
               strokeWidth: 2,
             ),
           },
         ),
-        Align(
-          alignment: Alignment.bottomCenter,
-          child: _buildBottomPanel(canSubmit),
-        ),
+        Align(alignment: Alignment.bottomCenter, child: _buildBottomPanel()),
       ],
     );
   }
 
-  Widget _buildBottomPanel(bool canSubmit) {
+  Widget _buildBottomPanel() {
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.62,
+        maxHeight: MediaQuery.of(context).size.height * 0.67,
       ),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -438,7 +624,6 @@ class _CheckinScreenState extends State<CheckinScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Drag handle
             Container(
               width: 40,
               height: 4,
@@ -449,7 +634,13 @@ class _CheckinScreenState extends State<CheckinScreen>
               ),
             ),
 
-            // Location row
+            // Banner: radius OFF (info ke user)
+            if (!_isRadiusEnforced) ...[
+              _buildRadiusOffBanner(),
+              const SizedBox(height: 10),
+            ],
+
+            // Alamat
             Row(
               children: [
                 Container(
@@ -482,14 +673,15 @@ class _CheckinScreenState extends State<CheckinScreen>
             const SizedBox(height: 14),
 
             _buildStatusCard(),
+            const SizedBox(height: 10),
+            _buildApprovalBanner(),
             const SizedBox(height: 14),
 
-            // Notes field
             TextField(
               controller: _notesController,
               style: const TextStyle(fontSize: 14, color: Color(0xFF263238)),
               decoration: InputDecoration(
-                hintText: "Catatan (Opsional)",
+                hintText: 'Catatan (Opsional)',
                 hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
                 prefixIcon: const Icon(
                   Icons.edit_note_rounded,
@@ -518,18 +710,230 @@ class _CheckinScreenState extends State<CheckinScreen>
 
             _buildPhotoSection(),
             const SizedBox(height: 18),
-
-            _buildSubmitButton(canSubmit),
+            _buildSubmitButton(),
           ],
         ),
       ),
     );
   }
 
-  // ─── Photo Section ─────────────────────────────────────────────────────────
+  // ── Banner: Radius OFF (informasi saja, tidak blokir) ─────────────────────
+  Widget _buildRadiusOffBanner() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8E1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: kAmber.withOpacity(0.5)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: kAmber.withOpacity(0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.location_off_rounded,
+              color: kAmber,
+              size: 16,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Mode Bebas Radius',
+                  style: TextStyle(
+                    color: kAmber,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Admin menonaktifkan cek radius. Absensi dari mana saja, hasilnya menunggu persetujuan admin.',
+                  style: TextStyle(
+                    color: kAmber.withOpacity(0.8),
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Approval Banner ────────────────────────────────────────────────────────
+  Widget _buildApprovalBanner() {
+    if (_isHoliday || _isLate || _isBlockedByRadius)
+      return const SizedBox.shrink();
+
+    final isAuto = _willAutoApprove;
+    final color = isAuto ? kSuccessGreen : kAmber;
+    final bgColor = isAuto ? const Color(0xFFE8F5E9) : const Color(0xFFFFF8E1);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.4)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isAuto
+                ? Icons.verified_rounded
+                : Icons.admin_panel_settings_outlined,
+            color: color,
+            size: 18,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isAuto
+                      ? 'Akan Disetujui Otomatis'
+                      : 'Akan Masuk Antrian Approval Admin',
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  isAuto
+                      ? 'Dalam radius kantor & jam sesuai ✓'
+                      : 'Radius nonaktif → absensi menunggu persetujuan admin',
+                  style: TextStyle(color: color.withOpacity(0.8), fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Status Card ─────────────────────────────────────────────────────────────
+  Widget _buildStatusCard() {
+    Color color;
+    IconData icon;
+    String text;
+    String subtitle;
+
+    if (_isHoliday) {
+      color = kErrorRed;
+      icon = Icons.event_busy_rounded;
+      text = 'Hari Libur: $_holidayName';
+      subtitle = 'Tidak perlu absen hari ini';
+    } else if (_isLate) {
+      color = kErrorRed;
+      icon = Icons.timer_off_rounded;
+      text = 'Waktu Absen Masuk Ditutup';
+      subtitle = 'Batas: $_checkInLimit  •  Toleransi: $_tolerance menit';
+    } else if (_isBlockedByRadius) {
+      // Radius ON dan user di luar → DIBLOKIR TOTAL
+      color = kErrorRed;
+      icon = Icons.block_rounded;
+      text = 'Diluar Radius — Absen Ditolak';
+      subtitle =
+          'Anda berada ${_distanceFromOffice?.toStringAsFixed(0) ?? '-'}m dari kantor. Batas radius: ${_officeRadius.toStringAsFixed(0)}m';
+    } else if (!_isRadiusEnforced && !_isInRadius) {
+      // Radius OFF dan user di luar → boleh tapi pending
+      color = kAmber;
+      icon = Icons.location_off_rounded;
+      text = 'Di Luar Radius (Mode Bebas)';
+      subtitle = 'Batas: $_checkInLimit  •  Toleransi: $_tolerance menit';
+    } else if (!_isRadiusEnforced && _isInRadius) {
+      // Radius OFF tapi kebetulan dalam radius → tetap pending (enforcement off)
+      color = kAmber;
+      icon = Icons.location_off_rounded;
+      text = 'Mode Bebas Radius Aktif';
+      subtitle = 'Batas: $_checkInLimit  •  Toleransi: $_tolerance menit';
+    } else {
+      // Radius ON dan dalam radius → auto-approve
+      color = kSuccessGreen;
+      icon = Icons.verified_rounded;
+      text = 'Lokasi Terverifikasi ✓';
+      subtitle = 'Batas: $_checkInLimit  •  Toleransi: $_tolerance menit';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.07),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withOpacity(0.35), width: 1.5),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  text,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF78909C),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: color.withOpacity(0.3)),
+            ),
+            child: Text(
+              '${_distanceFromOffice?.toStringAsFixed(0) ?? '-'}m',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: color,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Photo Section ─────────────────────────────────────────────────────────
   Widget _buildPhotoSection() {
     return GestureDetector(
-      onTap: _takePhoto,
+      onTap: _canSubmit || _imageFile != null ? _takePhoto : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         width: double.infinity,
@@ -541,22 +945,20 @@ class _CheckinScreenState extends State<CheckinScreen>
             color: _imageFile != null ? kAccentBlue : Colors.blue.shade200,
             width: _imageFile != null ? 2.5 : 1.5,
           ),
-          boxShadow:
-              _imageFile != null
-                  ? [
-                    BoxShadow(
-                      color: kAccentBlue.withOpacity(0.25),
-                      blurRadius: 14,
-                      offset: const Offset(0, 5),
-                    ),
-                  ]
-                  : [],
+          boxShadow: _imageFile != null
+              ? [
+                  BoxShadow(
+                    color: kAccentBlue.withOpacity(0.25),
+                    blurRadius: 14,
+                    offset: const Offset(0, 5),
+                  ),
+                ]
+              : [],
         ),
         clipBehavior: Clip.antiAlias,
-        child:
-            _imageFile != null
-                ? _buildPhotoPreview()
-                : _buildPhotoPlaceholder(),
+        child: _imageFile != null
+            ? _buildPhotoPreview()
+            : _buildPhotoPlaceholder(),
       ),
     );
   }
@@ -566,7 +968,6 @@ class _CheckinScreenState extends State<CheckinScreen>
       fit: StackFit.expand,
       children: [
         Image.file(_imageFile!, fit: BoxFit.cover),
-        // Bottom gradient overlay
         Positioned(
           bottom: 0,
           left: 0,
@@ -597,7 +998,7 @@ class _CheckinScreenState extends State<CheckinScreen>
                 ),
                 const SizedBox(width: 6),
                 const Text(
-                  "Ketuk untuk ganti foto",
+                  'Ketuk untuk ganti foto',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 12,
@@ -609,7 +1010,6 @@ class _CheckinScreenState extends State<CheckinScreen>
             ),
           ),
         ),
-        // "Foto diambil" badge top-right
         Positioned(
           top: 10,
           right: 10,
@@ -619,13 +1019,13 @@ class _CheckinScreenState extends State<CheckinScreen>
               color: kSuccessGreen.withOpacity(0.9),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Row(
+            child: const Row(
               mainAxisSize: MainAxisSize.min,
-              children: const [
+              children: [
                 Icon(Icons.check_circle, color: Colors.white, size: 12),
                 SizedBox(width: 4),
                 Text(
-                  "Foto OK",
+                  'Foto OK',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 11,
@@ -658,7 +1058,7 @@ class _CheckinScreenState extends State<CheckinScreen>
         ),
         const SizedBox(width: 10),
         const Text(
-          "Ambil Foto Selfie",
+          'Ambil Foto Selfie',
           style: TextStyle(
             color: kAccentBlue,
             fontWeight: FontWeight.w700,
@@ -669,127 +1069,100 @@ class _CheckinScreenState extends State<CheckinScreen>
     );
   }
 
-  // ─── Submit Button ──────────────────────────────────────────────────────────
-  Widget _buildSubmitButton(bool canSubmit) {
-    // Jika libur, warna tombol jadi merah pudar atau abu-abu gelap
-    final buttonColor =
-        _isHoliday
-            ? [
-              const Color(0xFFB71C1C),
-              const Color(0xFFD32F2F),
-            ] // Merah tua jika libur
-            : (canSubmit
-                ? [kDeepBlue, kAccentBlue]
-                : [const Color(0xFFB0BEC5), const Color(0xFFCFD8DC)]);
+  // ── Submit Button ─────────────────────────────────────────────────────────
+  Widget _buildSubmitButton() {
+    List<Color> colors;
+    String label;
+    IconData icon;
+
+    if (_isHoliday) {
+      colors = [const Color(0xFFB71C1C), const Color(0xFFD32F2F)];
+      label = 'HARI LIBUR';
+      icon = Icons.event_busy_rounded;
+    } else if (_isLate) {
+      colors = [const Color(0xFF78909C), const Color(0xFF90A4AE)];
+      label = 'WAKTU ABSEN DITUTUP';
+      icon = Icons.timer_off_rounded;
+    } else if (_isBlockedByRadius) {
+      // Radius ON, di luar → BLOKIR dengan warna merah
+      colors = [kErrorRed, const Color(0xFFEF5350)];
+      label = 'DILUAR RADIUS — TIDAK BISA ABSEN';
+      icon = Icons.block_rounded;
+    } else if (_imageFile == null) {
+      colors = [const Color(0xFFB0BEC5), const Color(0xFFCFD8DC)];
+      label = 'AMBIL FOTO DULU';
+      icon = Icons.camera_alt_rounded;
+    } else if (_willAutoApprove) {
+      colors = [kSuccessGreen, const Color(0xFF00BFA5)];
+      label = 'ABSEN MASUK';
+      icon = Icons.verified_rounded;
+    } else {
+      // Radius OFF → bisa submit tapi pending
+      colors = [kDeepBlue, kAccentBlue];
+      label = 'KIRIM ABSENSI (PERSETUJUAN)';
+      icon = Icons.admin_panel_settings_outlined;
+    }
+
+    // Disabled: libur / terlambat / BLOKIR RADIUS / submitting / belum ada posisi
+    final bool disabled =
+        _isHoliday ||
+        _isLate ||
+        _isBlockedByRadius ||
+        _isSubmitting ||
+        _currentPosition == null;
 
     return SizedBox(
       width: double.infinity,
       height: 52,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: LinearGradient(colors: buttonColor),
+          gradient: LinearGradient(colors: colors),
           borderRadius: BorderRadius.circular(16),
+          boxShadow: (!disabled && _imageFile != null)
+              ? [
+                  BoxShadow(
+                    color: colors.first.withOpacity(0.4),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ]
+              : [],
         ),
         child: ElevatedButton(
-          onPressed: canSubmit ? _submitCheckIn : null,
+          onPressed: (_imageFile != null && !disabled) ? _submitCheckIn : null,
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.transparent,
             shadowColor: Colors.transparent,
-          ),
-          child: Text(
-            _isHoliday ? "HARI LIBUR" : "KIRIM ABSENSI",
-            style: const TextStyle(
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
           ),
+          child: _isSubmitting
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2.5,
+                  ),
+                )
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(icon, color: Colors.white, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        fontSize: 13,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
         ),
-      ),
-    );
-  }
-
-  // ─── Status Card ───────────────────────────────────────────────────────────
-  Widget _buildStatusCard() {
-    // Masukkan _isHoliday ke syarat error
-    final hasError = !_isInRadius || _isLate || _isHoliday;
-    final bgColor =
-        hasError ? const Color(0xFFFFF3F3) : const Color(0xFFF0FBF8);
-    final mainColor = hasError ? kErrorRed : kSuccessGreen;
-
-    String statusText;
-    IconData statusIcon;
-
-    if (_isHoliday) {
-      statusText = "Hari Libur: $_holidayName";
-      statusIcon = Icons.event_busy_rounded;
-    } else if (_isLate) {
-      statusText = "Waktu Absen Habis!";
-      statusIcon = Icons.timer_off_rounded;
-    } else if (!_isInRadius) {
-      statusText = "Di Luar Radius Kantor";
-      statusIcon = Icons.location_off_rounded;
-    } else {
-      statusText = "Lokasi Terverifikasi";
-      statusIcon = Icons.verified_rounded;
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: mainColor.withOpacity(0.35), width: 1.5),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: mainColor.withOpacity(0.12),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(statusIcon, color: mainColor, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  statusText,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: mainColor,
-                    fontSize: 13,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  "Batas: $_checkInLimit  •  Toleransi: $_tolerance menit",
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFF78909C),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: mainColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: mainColor.withOpacity(0.3)),
-            ),
-            child: Text(
-              "${_distanceFromOffice?.toStringAsFixed(0) ?? '-'}m",
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: mainColor,
-                fontSize: 13,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
