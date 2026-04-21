@@ -1,4 +1,4 @@
-import 'package:sapa_jonusa/service/job_service.dart';
+
 
 class JobComment {
   final int id;

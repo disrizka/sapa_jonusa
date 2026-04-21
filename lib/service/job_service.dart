@@ -5,8 +5,6 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sapa_jonusa/api/api.dart' as Api;
 
-// ── Models ────────────────────────────────────────────────────────────────────
-
 class TechnicianUser {
   final int id;
   final String name;
@@ -33,13 +31,24 @@ class Job {
   final String? description;
   final String status;
   final int? currentStep;
-  final int? technicianId;
   final String? feedback;
   final Map<String, dynamic>? cs;
   final Map<String, dynamic>? technician;
+  final int? technicianId;
   final List<JobTracker> trackers;
   final List<JobComment> comments;
   final String? createdAt;
+  final String? clientName;
+  final String? location;
+  final double? latitude;
+  final double? longitude;
+  final String? startTime;
+  final String? endTime;
+  final String? acceptedAt;
+  final String? completedAt;
+  final int? actualDuration;
+  final String? completionReason;
+  final bool isOverdue;
 
   Job({
     required this.id,
@@ -47,45 +56,59 @@ class Job {
     this.description,
     required this.status,
     this.currentStep,
-    this.technicianId,
     this.feedback,
     this.cs,
     this.technician,
-    this.trackers = const [],
-    this.comments = const [],
+    this.technicianId,
+    required this.trackers,
+    required this.comments,
     this.createdAt,
+    this.clientName,
+    this.location,
+    this.latitude,
+    this.longitude,
+    this.startTime,
+    this.endTime,
+    this.acceptedAt,
+    this.completedAt,
+    this.actualDuration,
+    this.completionReason,
+    this.isOverdue = false,
   });
 
-  bool get isCompleted => status == 'completed';
-  bool get isProcess => status == 'process';
   bool get isPending => status == 'pending';
+  bool get isProcess => status == 'process';
+  bool get isCompleted => status == 'completed';
 
   factory Job.fromJson(Map<String, dynamic> json) {
     return Job(
-      id: json['id'] as int? ?? 0,
-      title: json['title'] as String? ?? '',
+      id: json['id'] as int,
+      title: json['title'] as String,
       description: json['description'] as String?,
-      status: json['status'] as String? ?? 'pending',
-      currentStep: int.tryParse(json['current_step']?.toString() ?? ''),
-      technicianId: json['technician_id'] as int?,
+      status: json['status'] as String,
+      currentStep: json['current_step'] as int?,
       feedback: json['feedback'] as String?,
-      cs:
-          json['cs'] != null
-              ? Map<String, dynamic>.from(json['cs'] as Map)
-              : null,
-      technician:
-          json['technician'] != null
-              ? Map<String, dynamic>.from(json['technician'] as Map)
-              : null,
-      trackers:
-          (json['trackers'] as List? ?? [])
-              .map((t) => JobTracker.fromJson(t as Map<String, dynamic>))
-              .toList(),
-      comments:
-          (json['comments'] as List? ?? [])
-              .map((c) => JobComment.fromJson(c as Map<String, dynamic>))
-              .toList(),
+      cs: json['cs'] as Map<String, dynamic>?,
+      technician: json['technician'] as Map<String, dynamic>?,
+      technicianId: json['technician_id'] as int?,
+      trackers: (json['trackers'] as List<dynamic>? ?? [])
+          .map((t) => JobTracker.fromJson(t as Map<String, dynamic>))
+          .toList(),
+      comments: (json['comments'] as List<dynamic>? ?? [])
+          .map((c) => JobComment.fromJson(c as Map<String, dynamic>))
+          .toList(),
       createdAt: json['created_at'] as String?,
+      clientName: json['client_name'] as String?,
+      location: json['location'] as String?,
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
+      startTime: json['start_time'] as String?,
+      endTime: json['end_time'] as String?,
+      acceptedAt: json['accepted_at'] as String?,
+      completedAt: json['completed_at'] as String?,
+      actualDuration: json['actual_duration'] as int?,
+      completionReason: json['completion_reason'] as String?,
+      isOverdue: json['is_overdue'] as bool? ?? false,
     );
   }
 }
@@ -141,21 +164,18 @@ class JobComment {
   );
 }
 
-// ── Service ───────────────────────────────────────────────────────────────────
-
 class JobService {
   static const _storage = FlutterSecureStorage();
+
   static String get _base => '${Api.baseUrl}/api';
 
-  // ── Debug: print semua isi storage ────────────────────────────────────────
-  // Panggil di initState: await JobService.debugStorage();
   static Future<void> debugStorage() async {
     try {
       final all = await _storage.readAll();
       debugPrint('══════════════════════════════════════════');
-      debugPrint('📦 SECURE STORAGE — semua key yang tersimpan:');
+      debugPrint(' SECURE STORAGE — semua key yang tersimpan:');
       if (all.isEmpty) {
-        debugPrint('  ⚠️  Storage KOSONG — token belum tersimpan!');
+        debugPrint('  Storage KOSONG — token belum tersimpan!');
       } else {
         all.forEach((k, v) {
           final display = v.length > 100 ? '${v.substring(0, 100)}...' : v;
@@ -164,11 +184,10 @@ class JobService {
       }
       debugPrint('══════════════════════════════════════════');
     } catch (e) {
-      debugPrint('❌ debugStorage error: $e');
+      debugPrint(' debugStorage error: $e');
     }
   }
 
-  // ── Ambil token — key 'auth_token' sesuai login_screen.dart ──────────────
   static Future<String> _getToken() async {
     final token = await _storage.read(key: 'auth_token');
     debugPrint(
@@ -187,14 +206,17 @@ class JobService {
   static Map<String, String> _headers(String token) => {
     'Authorization': 'Bearer $token',
     'Accept': 'application/json',
+    'Content-Type': 'application/json',
   };
 
   static void _checkResponse(http.Response res, String ctx) {
     debugPrint('[$ctx] status=${res.statusCode}');
-    if (res.statusCode == 401)
+    if (res.statusCode == 401) {
       throw Exception('Sesi habis. Silakan login ulang.');
-    if (res.statusCode == 403)
+    }
+    if (res.statusCode == 403) {
       throw Exception('Anda tidak memiliki izin untuk aksi ini.');
+    }
     if (res.statusCode >= 400) {
       String msg = 'Error ${res.statusCode}';
       try {
@@ -204,7 +226,6 @@ class JobService {
     }
   }
 
-  // ── GET active jobs ───────────────────────────────────────────────────────
   static Future<List<Job>> getActiveJobs() async {
     final token = await _getToken();
     final res = await http.get(
@@ -212,11 +233,10 @@ class JobService {
       headers: _headers(token),
     );
     _checkResponse(res, 'getActiveJobs');
-    final list = (jsonDecode(res.body)['data'] as List? ?? []);
+    final list = jsonDecode(res.body)['data'] as List? ?? [];
     return list.map((e) => Job.fromJson(e as Map<String, dynamic>)).toList();
   }
 
-  // ── GET job history ───────────────────────────────────────────────────────
   static Future<List<Job>> getJobHistory() async {
     final token = await _getToken();
     final res = await http.get(
@@ -224,11 +244,10 @@ class JobService {
       headers: _headers(token),
     );
     _checkResponse(res, 'getJobHistory');
-    final list = (jsonDecode(res.body)['data'] as List? ?? []);
+    final list = jsonDecode(res.body)['data'] as List? ?? [];
     return list.map((e) => Job.fromJson(e as Map<String, dynamic>)).toList();
   }
 
-  // ── GET technicians ───────────────────────────────────────────────────────
   static Future<List<TechnicianUser>> getTechnicians() async {
     final token = await _getToken();
     final res = await http.get(
@@ -239,40 +258,47 @@ class JobService {
     _checkResponse(res, 'getTechnicians');
 
     final body = jsonDecode(res.body);
-    final List<dynamic> list =
-        body is Map && body['data'] != null
-            ? body['data'] as List
-            : body is List
-            ? body
-            : [];
+    final List<dynamic> list = body is Map && body['data'] != null
+        ? body['data'] as List
+        : body is List
+        ? body
+        : [];
 
     return list
         .map((e) => TechnicianUser.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
-  // ── POST create job ───────────────────────────────────────────────────────
-  static Future<Job> createJob({
+  static Future<void> createJob({
     required String title,
     required String description,
     required int technicianId,
+    String? clientName,
+    String? location,
+    double? latitude,
+    double? longitude,
+    String? startTime,
+    String? endTime,
   }) async {
     final token = await _getToken();
     final res = await http.post(
       Uri.parse('$_base/jobs'),
-      headers: {..._headers(token), 'Content-Type': 'application/json'},
+      headers: _headers(token),
       body: jsonEncode({
         'title': title,
         'description': description,
         'technician_id': technicianId,
+        if (clientName != null) 'client_name': clientName,
+        if (location != null) 'location': location,
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
+        if (startTime != null) 'start_time': startTime,
+        if (endTime != null) 'end_time': endTime,
       }),
     );
-    debugPrint('[createJob] body=${res.body}');
     _checkResponse(res, 'createJob');
-    return Job.fromJson(jsonDecode(res.body)['job'] as Map<String, dynamic>);
   }
 
-  // ── POST accept job ───────────────────────────────────────────────────────
   static Future<void> acceptJob(int jobId) async {
     final token = await _getToken();
     final res = await http.post(
@@ -282,46 +308,47 @@ class JobService {
     _checkResponse(res, 'acceptJob');
   }
 
-  // ── POST update progress ──────────────────────────────────────────────────
   static Future<Map<String, dynamic>> updateProgress({
     required int jobId,
     required String description,
     File? photoFile,
     File? videoFile,
+    String? completionReason,
   }) async {
     final token = await _getToken();
-    final req = http.MultipartRequest(
+    final request = http.MultipartRequest(
       'POST',
       Uri.parse('$_base/jobs/$jobId/progress'),
     );
-    req.headers.addAll({
+
+    request.headers.addAll({
       'Authorization': 'Bearer $token',
       'Accept': 'application/json',
     });
-    req.fields['description_value'] = description;
 
+    request.fields['description_value'] = description;
+    if (completionReason != null && completionReason.isNotEmpty) {
+      request.fields['completion_reason'] = completionReason;
+    }
     if (photoFile != null) {
-      req.files.add(await http.MultipartFile.fromPath('photo', photoFile.path));
+      request.files.add(
+        await http.MultipartFile.fromPath('photo', photoFile.path),
+      );
     }
     if (videoFile != null) {
-      req.files.add(await http.MultipartFile.fromPath('video', videoFile.path));
+      request.files.add(
+        await http.MultipartFile.fromPath('video', videoFile.path),
+      );
     }
 
-    final streamed = await req.send();
+    final streamed = await request.send();
     final res = await http.Response.fromStream(streamed);
-    debugPrint('[updateProgress] status=${res.statusCode} body=${res.body}');
     _checkResponse(res, 'updateProgress');
 
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
-    final job = Job.fromJson(data['job'] as Map<String, dynamic>);
-    return {
-      'job': job,
-      'completed': job.isCompleted,
-      'message': data['message'] as String? ?? 'Progress diperbarui',
-    };
+    final data = jsonDecode(res.body);
+    return {'job': Job.fromJson(data['job'] as Map<String, dynamic>)};
   }
 
-  // ── POST add comment ──────────────────────────────────────────────────────
   static Future<JobComment> addComment({
     required int jobId,
     required String comment,
@@ -329,7 +356,7 @@ class JobService {
     final token = await _getToken();
     final res = await http.post(
       Uri.parse('$_base/jobs/$jobId/comments'),
-      headers: {..._headers(token), 'Content-Type': 'application/json'},
+      headers: _headers(token),
       body: jsonEncode({'comment': comment}),
     );
     debugPrint('[addComment] status=${res.statusCode} body=${res.body}');
@@ -339,7 +366,6 @@ class JobService {
     );
   }
 
-  // ── GET job detail ────────────────────────────────────────────────────────
   static Future<Job> getJobDetail(int jobId) async {
     final token = await _getToken();
     final res = await http.get(

@@ -1,7 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:http/http.dart' as http;
+import 'package:latlong2/latlong.dart';
 import 'package:sapa_jonusa/service/job_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
 
 const _kPrimary = Color(0xFF1565C0);
 const _kAccent = Color(0xFF0D47A1);
@@ -21,6 +25,8 @@ class CsCreateJobScreen extends StatefulWidget {
 class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
+  final _clientCtrl = TextEditingController();
+  final _locationCtrl = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   final _storage = const FlutterSecureStorage();
 
@@ -30,7 +36,15 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
   bool _submitting = false;
   String? _error;
 
-  // Info user yang login
+  // Location
+  double? _selectedLat;
+  double? _selectedLng;
+  bool _showMap = false;
+
+  // Time scheduling
+  DateTime? _startDateTime;
+  DateTime? _endDateTime;
+
   String _userName = '';
   String _userRole = '';
   String _userDivision = '';
@@ -45,6 +59,8 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
   void dispose() {
     _titleCtrl.dispose();
     _descCtrl.dispose();
+    _clientCtrl.dispose();
+    _locationCtrl.dispose();
     super.dispose();
   }
 
@@ -53,7 +69,6 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
     await _loadTechnicians();
   }
 
-  /// Baca data user dari secure storage agar tahu role & divisi
   Future<void> _loadUserInfo() async {
     try {
       final userStr = await _storage.read(key: 'user_data');
@@ -62,7 +77,6 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
         setState(() {
           _userName = data['name'] as String? ?? '';
           _userRole = data['role'] as String? ?? '';
-          // division bisa berupa Map { id, name } atau String
           final div = data['division'];
           if (div is Map) {
             _userDivision = div['name'] as String? ?? '';
@@ -101,12 +115,27 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
       _showSnack('Pilih teknisi terlebih dahulu!', _kRed);
       return;
     }
+    if (_startDateTime == null || _endDateTime == null) {
+      _showSnack('Tentukan waktu mulai dan selesai!', _kRed);
+      return;
+    }
+    if (_endDateTime!.isBefore(_startDateTime!)) {
+      _showSnack('Waktu selesai harus setelah waktu mulai!', _kRed);
+      return;
+    }
+
     setState(() => _submitting = true);
     try {
       await JobService.createJob(
         title: _titleCtrl.text.trim(),
         description: _descCtrl.text.trim(),
         technicianId: _selectedTech!.id,
+        clientName: _clientCtrl.text.trim(),
+        location: _locationCtrl.text.trim(),
+        latitude: _selectedLat,
+        longitude: _selectedLng,
+        startTime: _startDateTime?.toIso8601String(),
+        endTime: _endDateTime?.toIso8601String(),
       );
       if (!mounted) return;
       _showSnack('Tugas berhasil dikirim ke ${_selectedTech!.name}!', _kGreen);
@@ -129,12 +158,108 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
     );
   }
 
-  // Label role yang tampil di banner
   String get _roleLabel {
     if (_userRole == 'kepala') return 'Pimpinan';
-    if (_userDivision.toLowerCase().contains('customer service'))
+    if (_userDivision.toLowerCase().contains('customer service')) {
       return 'Customer Service';
+    }
     return _userRole;
+  }
+
+  Future<void> _pickDateTime({required bool isStart}) async {
+    final now = DateTime.now();
+    final initialDate = isStart
+        ? (_startDateTime ?? now)
+        : (_endDateTime ??
+              (_startDateTime ?? now).add(const Duration(hours: 2)));
+
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: now.subtract(const Duration(days: 1)),
+      lastDate: now.add(const Duration(days: 365)),
+      builder: (context, child) => Theme(
+        data: Theme.of(
+          context,
+        ).copyWith(colorScheme: const ColorScheme.light(primary: _kPrimary)),
+        child: child!,
+      ),
+    );
+    if (date == null || !mounted) return;
+
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initialDate),
+      builder: (context, child) => Theme(
+        data: Theme.of(
+          context,
+        ).copyWith(colorScheme: const ColorScheme.light(primary: _kPrimary)),
+        child: child!,
+      ),
+    );
+    if (time == null) return;
+
+    final combined = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    );
+    setState(() {
+      if (isStart) {
+        _startDateTime = combined;
+      } else {
+        _endDateTime = combined;
+      }
+    });
+  }
+
+  String _formatDateTime(DateTime? dt) {
+    if (dt == null) return 'Pilih waktu';
+    final days = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
+    return '${days[dt.weekday - 1]}, ${dt.day} ${months[dt.month - 1]} ${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+
+  String? _estimasiDurasi() {
+    if (_startDateTime == null || _endDateTime == null) return null;
+    final diff = _endDateTime!.difference(_startDateTime!);
+    final h = diff.inHours;
+    final m = diff.inMinutes % 60;
+    if (h > 0 && m > 0) return '$h jam $m menit';
+    if (h > 0) return '$h jam';
+    return '$m menit';
+  }
+
+  Future<void> _reverseGeocode(double lat, double lng) async {
+    try {
+      final url = Uri.parse(
+        'https://nominatim.openstreetmap.org/reverse?lat=$lat&lon=$lng&format=json',
+      );
+      final res = await http.get(
+        url,
+        headers: {'User-Agent': 'SapaJonusa/1.0'},
+      );
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final address = data['display_name'] as String? ?? '';
+        setState(() => _locationCtrl.text = address);
+      }
+    } catch (_) {}
   }
 
   @override
@@ -150,12 +275,11 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
       ),
-      body:
-          _loading
-              ? const Center(child: CircularProgressIndicator(color: _kPrimary))
-              : _error != null
-              ? _buildError()
-              : _buildForm(),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator(color: _kPrimary))
+          : _error != null
+          ? _buildError()
+          : _buildForm(),
     );
   }
 
@@ -193,7 +317,7 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Info Banner ────────────────────────────────────────────────
+            // ── Banner ──────────────────────────────────────────────────────
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -226,7 +350,7 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
                         ),
                         const SizedBox(height: 2),
                         const Text(
-                          'Isi detail tugas dan pilih teknisi pelaksana.',
+                          'Isi detail tugas, klien, lokasi, waktu, dan pilih teknisi.',
                           style: TextStyle(
                             color: Colors.white70,
                             fontSize: 12,
@@ -242,7 +366,7 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
 
             const SizedBox(height: 24),
 
-            // ── Judul Tugas ────────────────────────────────────────────────
+            // ── Judul Tugas ──────────────────────────────────────────────────
             _label('Judul Tugas *'),
             const SizedBox(height: 6),
             TextFormField(
@@ -252,21 +376,19 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
                 hint: 'Contoh: Perbaikan AC Ruang Rapat',
                 icon: Icons.work_outline,
               ),
-              validator:
-                  (v) =>
-                      (v == null || v.trim().isEmpty)
-                          ? 'Judul tidak boleh kosong'
-                          : null,
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? 'Judul tidak boleh kosong'
+                  : null,
             ),
 
             const SizedBox(height: 16),
 
-            // ── Deskripsi ──────────────────────────────────────────────────
+            // ── Deskripsi ────────────────────────────────────────────────────
             _label('Deskripsi Pekerjaan'),
             const SizedBox(height: 6),
             TextFormField(
               controller: _descCtrl,
-              maxLines: 4,
+              maxLines: 3,
               style: const TextStyle(fontSize: 14, color: _kText),
               decoration: _inputDecoration(
                 hint: 'Jelaskan detail pekerjaan yang harus dilakukan...',
@@ -276,9 +398,223 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
 
             const SizedBox(height: 16),
 
-            // ── Pilih Teknisi ──────────────────────────────────────────────
-            _label('Pilih Teknisi *'),
+            // ══════════════════════════════════════════════════════════════
+            // BARU: Nama Klien
+            // ══════════════════════════════════════════════════════════════
+            _sectionHeader('👤 Informasi Klien'),
+            const SizedBox(height: 10),
+            _label('Nama Klien *'),
             const SizedBox(height: 6),
+            TextFormField(
+              controller: _clientCtrl,
+              style: const TextStyle(fontSize: 14, color: _kText),
+              decoration: _inputDecoration(
+                hint: 'Contoh: PT. Maju Bersama / Bapak Ahmad',
+                icon: Icons.person_outline,
+              ),
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? 'Nama klien tidak boleh kosong'
+                  : null,
+            ),
+
+            const SizedBox(height: 24),
+
+            // ══════════════════════════════════════════════════════════════
+            // BARU: Lokasi via Map
+            // ══════════════════════════════════════════════════════════════
+            _sectionHeader('📍 Lokasi Pekerjaan'),
+            const SizedBox(height: 10),
+            _label('Alamat'),
+            const SizedBox(height: 6),
+            TextFormField(
+              controller: _locationCtrl,
+              maxLines: 2,
+              style: const TextStyle(fontSize: 14, color: _kText),
+              decoration:
+                  _inputDecoration(
+                    hint: 'Ketik alamat atau pilih lewat map...',
+                    icon: Icons.location_on_outlined,
+                  ).copyWith(
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.map_outlined, color: _kPrimary),
+                      onPressed: () => setState(() => _showMap = !_showMap),
+                      tooltip: 'Pilih lokasi di peta',
+                    ),
+                  ),
+            ),
+
+            // ── Koordinat info ──────────────────────────────────────────
+            if (_selectedLat != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.gps_fixed, size: 14, color: _kGreen),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Lat: ${_selectedLat!.toStringAsFixed(6)}, Lng: ${_selectedLng!.toStringAsFixed(6)}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: _kGreen,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // ── Map picker ──────────────────────────────────────────────
+            if (_showMap) ...[
+              const SizedBox(height: 12),
+              Container(
+                height: 280,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _kPrimary.withOpacity(0.3)),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Stack(
+                  children: [
+                    FlutterMap(
+                      options: MapOptions(
+                        initialCenter: LatLng(
+                          _selectedLat ?? -6.2088,
+                          _selectedLng ?? 106.8456,
+                        ),
+                        initialZoom: 14,
+                        onTap: (tapPosition, point) async {
+                          setState(() {
+                            _selectedLat = point.latitude;
+                            _selectedLng = point.longitude;
+                          });
+                          await _reverseGeocode(
+                            point.latitude,
+                            point.longitude,
+                          );
+                        },
+                      ),
+                      children: [
+                        TileLayer(
+                          urlTemplate:
+                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          userAgentPackageName: 'com.jonusa.sapa',
+                        ),
+                        if (_selectedLat != null)
+                          MarkerLayer(
+                            markers: [
+                              Marker(
+                                point: LatLng(_selectedLat!, _selectedLng!),
+                                width: 40,
+                                height: 40,
+                                child: const Icon(
+                                  Icons.location_pin,
+                                  color: _kRed,
+                                  size: 40,
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                        child: const Text(
+                          'Ketuk peta untuk memilih lokasi',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: _kText,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 24),
+
+            // ══════════════════════════════════════════════════════════════
+            // BARU: Estimasi Waktu
+            // ══════════════════════════════════════════════════════════════
+            _sectionHeader('🕐 Waktu Pengerjaan'),
+            const SizedBox(height: 10),
+
+            // Waktu Mulai
+            _label('Waktu Mulai *'),
+            const SizedBox(height: 6),
+            _buildDateTimeButton(
+              value: _startDateTime,
+              hint: 'Pilih tanggal & jam mulai',
+              icon: Icons.play_circle_outline,
+              color: _kPrimary,
+              onTap: () => _pickDateTime(isStart: true),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Waktu Selesai (Estimasi)
+            _label('Estimasi Selesai *'),
+            const SizedBox(height: 6),
+            _buildDateTimeButton(
+              value: _endDateTime,
+              hint: 'Pilih tanggal & jam selesai',
+              icon: Icons.stop_circle_outlined,
+              color: _kRed,
+              onTap: () => _pickDateTime(isStart: false),
+            ),
+
+            // Durasi estimasi
+            if (_estimasiDurasi() != null)
+              Container(
+                margin: const EdgeInsets.only(top: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: _kGreen.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: _kGreen.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.timer_outlined, color: _kGreen, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Estimasi durasi: ${_estimasiDurasi()}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: _kGreen,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            const SizedBox(height: 24),
+
+            // ── Pilih Teknisi ────────────────────────────────────────────────
+            _sectionHeader('🔧 Pilih Teknisi'),
+            const SizedBox(height: 10),
 
             if (_technicians.isEmpty)
               Container(
@@ -306,12 +642,13 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
 
             const SizedBox(height: 32),
 
-            // ── Tombol Submit ──────────────────────────────────────────────
+            // ── Submit ────────────────────────────────────────────────────────
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed:
-                    (_submitting || _technicians.isEmpty) ? null : _submit,
+                onPressed: (_submitting || _technicians.isEmpty)
+                    ? null
+                    : _submit,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _kPrimary,
                   foregroundColor: Colors.white,
@@ -321,34 +658,96 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
                   ),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                child:
-                    _submitting
-                        ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2.5,
-                          ),
-                        )
-                        : const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.send_outlined, size: 18),
-                            SizedBox(width: 8),
-                            Text(
-                              'Kirim Tugas',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                              ),
-                            ),
-                          ],
+                child: _submitting
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2.5,
                         ),
+                      )
+                    : const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.send_outlined, size: 18),
+                          SizedBox(width: 8),
+                          Text(
+                            'Kirim Tugas',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ],
+                      ),
               ),
             ),
 
             const SizedBox(height: 32),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionHeader(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: _kPrimary.withOpacity(0.07),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _kPrimary.withOpacity(0.15)),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
+          color: _kPrimary,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDateTimeButton({
+    required DateTime? value,
+    required String hint,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: value != null
+                ? color.withOpacity(0.5)
+                : Colors.grey.shade200,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: value != null ? color : _kSub, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                value != null ? _formatDateTime(value) : hint,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: value != null ? _kText : _kSub,
+                  fontWeight: value != null
+                      ? FontWeight.w600
+                      : FontWeight.normal,
+                ),
+              ),
+            ),
+            Icon(Icons.calendar_today_outlined, color: _kSub, size: 16),
           ],
         ),
       ),
@@ -370,26 +769,24 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
             color: isSelected ? _kPrimary : Colors.grey.shade200,
             width: isSelected ? 1.5 : 1,
           ),
-          boxShadow:
-              isSelected
-                  ? [
-                    BoxShadow(
-                      color: _kPrimary.withOpacity(0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ]
-                  : [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.03),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: _kPrimary.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.03),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
         ),
         child: Row(
           children: [
-            // Avatar inisial
             Container(
               width: 44,
               height: 44,
@@ -422,7 +819,6 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
                     ),
                   ),
                   const SizedBox(height: 3),
-                  // FIX: Sekarang menampilkan nama divisi dari API
                   Text(
                     tech.division,
                     style: const TextStyle(fontSize: 12, color: _kSub),

@@ -20,8 +20,8 @@ class _SakitScreenState extends State<SakitScreen> {
 
   DateTime? _startDate;
   DateTime? _endDate;
-  File? _imageFile; // Untuk Foto Kamera
-  File? _docFile; // Untuk Dokumen PDF
+  File? _imageFile;
+  File? _docFile;
   bool _loading = false;
 
   Future<void> _takePhoto() async {
@@ -54,7 +54,7 @@ class _SakitScreenState extends State<SakitScreen> {
       String? token = await _storage.read(key: 'auth_token');
       var request = http.MultipartRequest(
         'POST',
-        Uri.parse('${Api.baseUrl}/api/presence/permissions'),
+        Uri.parse('${Api.baseUrl}/api/presence/permisions'),
       );
 
       request.headers.addAll({
@@ -62,7 +62,7 @@ class _SakitScreenState extends State<SakitScreen> {
         'Accept': 'application/json',
       });
 
-      request.fields['category'] = 'sakit';
+      request.fields['category'] = 'Sakit';
       request.fields['start_date'] = DateFormat(
         'yyyy-MM-dd',
       ).format(_startDate!);
