@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'package:sapa_jonusa/admin/admin_screen.dart';
+import 'package:sapa_jonusa/api/api.dart';
 import 'package:sapa_jonusa/auth/login_screen.dart';
 import 'package:sapa_jonusa/karyawan/karyawan_screen.dart';
+import 'package:sapa_jonusa/service/fcm_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
@@ -30,6 +34,11 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
 
     if (token != null && role != null) {
+      // ── Kirim ulang FCM token (handle reinstall / token refresh) ──
+      await _sendFcmToken(token);
+
+      if (!mounted) return;
+
       final cleanRole = role.trim().toLowerCase();
       if (cleanRole == 'admin' || cleanRole == 'kepala') {
         Navigator.pushReplacement(
@@ -46,6 +55,27 @@ class _SplashScreenState extends State<SplashScreen> {
       }
     } else {
       _goToLogin();
+    }
+  }
+
+  // ── Kirim FCM token ke server ─────────────────────────────────────────────
+  Future<void> _sendFcmToken(String authToken) async {
+    try {
+      final fcmToken = await FcmService.getToken();
+      if (fcmToken == null) return;
+
+      await http.post(
+        Uri.parse('$baseUrl/api/user/fcm-token'),
+        headers: {
+          'Authorization': 'Bearer $authToken',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({'fcm_token': fcmToken}),
+      );
+
+      debugPrint('FCM token (splash) berhasil dikirim.');
+    } catch (e) {
+      debugPrint('Gagal kirim FCM token dari splash: $e');
     }
   }
 

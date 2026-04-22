@@ -54,7 +54,7 @@ class _SakitScreenState extends State<SakitScreen> {
       String? token = await _storage.read(key: 'auth_token');
       var request = http.MultipartRequest(
         'POST',
-        Uri.parse('${Api.baseUrl}/api/presence/permisions'),
+        Uri.parse('${Api.baseUrl}/api/presence/permissions'),
       );
 
       request.headers.addAll({
@@ -62,7 +62,7 @@ class _SakitScreenState extends State<SakitScreen> {
         'Accept': 'application/json',
       });
 
-      request.fields['category'] = 'Sakit';
+      request.fields['category'] = 'sakit';
       request.fields['start_date'] = DateFormat(
         'yyyy-MM-dd',
       ).format(_startDate!);
@@ -71,7 +71,6 @@ class _SakitScreenState extends State<SakitScreen> {
       ).format(_endDate ?? _startDate!);
       request.fields['reason'] = _reasonController.text;
 
-      // Kirim Foto ke kolom attachment_photo
       if (_imageFile != null) {
         request.files.add(
           await http.MultipartFile.fromPath(

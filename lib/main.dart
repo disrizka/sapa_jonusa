@@ -1,23 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:sapa_jonusa/auth/splash_screen.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:sapa_jonusa/auth/splash_screen.dart';
+import 'package:sapa_jonusa/service/fcm_service.dart';
 
-// 1. Inisialisasi Plugin secara Global agar bisa diakses di file lain
-
+// 1. Inisialisasi Plugin secara Global
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
 void main() async {
-  // 2. Pastikan binding sudah siap sebelum inisialisasi plugin
+  // 2. Pastikan binding sudah siap
   WidgetsFlutterBinding.ensureInitialized();
 
-  await initializeDateFormatting(
-    'id_ID',
-    null,
-  ).then((_) => runApp(const MyApp()));
+  // 3. Inisialisasi Firebase
+  await Firebase.initializeApp();
 
-  // 3. Setup awal untuk notifikasi Android
+  // 4. Inisialisasi FCM (Pastikan file services/fcm_service.dart sudah benar)
+  await FcmService.init();
+
+  // 5. Inisialisasi Format Tanggal (Bahasa Indonesia)
+  await initializeDateFormatting('id_ID', null);
+
+  // 6. Setup Notifikasi Lokal untuk Android
   const AndroidInitializationSettings initializationSettingsAndroid =
       AndroidInitializationSettings('@mipmap/ic_launcher');
 
@@ -25,9 +30,9 @@ void main() async {
     android: initializationSettingsAndroid,
   );
 
-  // 4. Jalankan inisialisasi
   await flutterLocalNotificationsPlugin.initialize(initializationSettings);
 
+  // 7. Jalankan App (Cukup satu kali panggil runApp)
   runApp(const MyApp());
 }
 
@@ -54,7 +59,7 @@ class MyApp extends StatelessWidget {
           foregroundColor: Colors.black,
         ),
       ),
-      // 🔥 Entry awal app
+      // Entry awal aplikasi
       home: const SplashScreen(),
     );
   }

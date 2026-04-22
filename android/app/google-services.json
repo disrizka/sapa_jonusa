@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "31866104644",
+    "project_id": "sapa-jonusa",
+    "storage_bucket": "sapa-jonusa.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:31866104644:android:73a150b6d6a993283b4511",
+        "android_client_info": {
+          "package_name": "com.jonusa.sapa"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAiVr1AQk7L5BWrfx39NK_fKft1XB8uA4g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sapa_jonusa/admin/admin_screen.dart';
 import 'package:sapa_jonusa/api/api.dart';
 import 'package:sapa_jonusa/karyawan/karyawan_screen.dart';
+import 'package:sapa_jonusa/service/fcm_service.dart';
 
 // ─── Warna tema biru (konsisten dengan home screen) ──────────────────────────
 const _kPrimary = Color(0xFF1565C0);
@@ -113,7 +114,7 @@ class _LoginScreenState extends State<LoginScreen>
           value: data['user']['role'].toString(),
         );
 
-        // ── FIX: Simpan seluruh data user sebagai JSON string ───────
+        // ── Simpan seluruh data user sebagai JSON string ────────────
         // Dibutuhkan oleh job_list_screen.dart, job_screen.dart, dll
         await _storage.write(
           key: 'user_data',
@@ -122,6 +123,10 @@ class _LoginScreenState extends State<LoginScreen>
 
         debugPrint('DEBUG USER LOGIN: ${json.encode(data['user'])}');
 
+        // ── Kirim FCM token ke server ────────────────────────────────
+        await _sendFcmToken(data['access_token'] as String);
+
+        // ── Navigasi berdasarkan role ────────────────────────────────
         final role = (data['user']['role'] as String).trim().toLowerCase();
 
         if (role == 'admin' || role == 'kepala') {
@@ -168,6 +173,27 @@ class _LoginScreenState extends State<LoginScreen>
         margin: const EdgeInsets.all(16),
       ),
     );
+  }
+
+  // ── Kirim FCM token ke server setelah login berhasil ─────────────────────
+  Future<void> _sendFcmToken(String authToken) async {
+    try {
+      final fcmToken = await FcmService.getToken();
+      if (fcmToken == null) return;
+
+      await http.post(
+        Uri.parse('$baseUrl/api/user/fcm-token'),
+        headers: {
+          'Authorization': 'Bearer $authToken',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({'fcm_token': fcmToken}),
+      );
+
+      debugPrint('FCM token berhasil dikirim.');
+    } catch (e) {
+      debugPrint('Gagal kirim FCM token: $e');
+    }
   }
 
   @override
@@ -232,10 +258,9 @@ class _LoginScreenState extends State<LoginScreen>
                             emailCtrl: _emailController,
                             passwordCtrl: _passwordController,
                             obscurePassword: _obscurePassword,
-                            onToggleObscure:
-                                () => setState(
-                                  () => _obscurePassword = !_obscurePassword,
-                                ),
+                            onToggleObscure: () => setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            ),
                             isLoading: _isLoading,
                             onLogin: _login,
                           ),
@@ -552,13 +577,12 @@ class _InputField extends StatelessWidget {
           child: Icon(prefixIcon, size: 18, color: _kPrimary.withOpacity(0.7)),
         ),
         prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-        suffixIcon:
-            suffixWidget != null
-                ? Padding(
-                  padding: const EdgeInsets.only(right: 14),
-                  child: suffixWidget,
-                )
-                : null,
+        suffixIcon: suffixWidget != null
+            ? Padding(
+                padding: const EdgeInsets.only(right: 14),
+                child: suffixWidget,
+              )
+            : null,
         suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
         filled: true,
         fillColor: _kBg,
@@ -597,63 +621,60 @@ class _LoginButton extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         height: 56,
         decoration: BoxDecoration(
-          gradient:
-              isLoading
-                  ? LinearGradient(
-                    colors: [
-                      _kPrimary.withOpacity(0.6),
-                      _kPrimaryMd.withOpacity(0.6),
-                    ],
-                  )
-                  : const LinearGradient(
-                    colors: [_kAccent, _kPrimary, _kPrimaryMd],
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                  ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow:
-              isLoading
-                  ? []
-                  : [
-                    BoxShadow(
-                      color: _kPrimary.withOpacity(0.45),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                    BoxShadow(
-                      color: _kPrimaryLt.withOpacity(0.2),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
+          gradient: isLoading
+              ? LinearGradient(
+                  colors: [
+                    _kPrimary.withOpacity(0.6),
+                    _kPrimaryMd.withOpacity(0.6),
                   ],
+                )
+              : const LinearGradient(
+                  colors: [_kAccent, _kPrimary, _kPrimaryMd],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: isLoading
+              ? []
+              : [
+                  BoxShadow(
+                    color: _kPrimary.withOpacity(0.45),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                  BoxShadow(
+                    color: _kPrimaryLt.withOpacity(0.2),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
         ),
         child: Center(
-          child:
-              isLoading
-                  ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2.5,
-                    ),
-                  )
-                  : const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.login_rounded, color: Colors.white, size: 20),
-                      SizedBox(width: 10),
-                      Text(
-                        'MASUK',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                    ],
+          child: isLoading
+              ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2.5,
                   ),
+                )
+              : const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.login_rounded, color: Colors.white, size: 20),
+                    SizedBox(width: 10),
+                    Text(
+                      'MASUK',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
         ),
       ),
     );
