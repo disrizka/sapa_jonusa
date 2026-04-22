@@ -1,38 +1,29 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:intl/date_symbol_data_local.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:sapa_jonusa/auth/splash_screen.dart';
 import 'package:sapa_jonusa/service/fcm_service.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
-// 1. Inisialisasi Plugin secara Global
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
-void main() async {
-  // 2. Pastikan binding sudah siap
-  WidgetsFlutterBinding.ensureInitialized();
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+}
 
-  // 3. Inisialisasi Firebase
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
 
-  // 4. Inisialisasi FCM (Pastikan file services/fcm_service.dart sudah benar)
-  await FcmService.init();
+  // WAJIB sebelum runApp
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  // 5. Inisialisasi Format Tanggal (Bahasa Indonesia)
+  await FcmService.init();
   await initializeDateFormatting('id_ID', null);
 
-  // 6. Setup Notifikasi Lokal untuk Android
-  const AndroidInitializationSettings initializationSettingsAndroid =
-      AndroidInitializationSettings('@mipmap/ic_launcher');
-
-  const InitializationSettings initializationSettings = InitializationSettings(
-    android: initializationSettingsAndroid,
-  );
-
-  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
-
-  // 7. Jalankan App (Cukup satu kali panggil runApp)
   runApp(const MyApp());
 }
 
@@ -59,7 +50,6 @@ class MyApp extends StatelessWidget {
           foregroundColor: Colors.black,
         ),
       ),
-      // Entry awal aplikasi
       home: const SplashScreen(),
     );
   }

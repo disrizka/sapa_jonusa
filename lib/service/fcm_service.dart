@@ -4,12 +4,9 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/material.dart';
 
-// Handler background — HARUS top-level function (di luar class)
 @pragma('vm:entry-point')
 Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  // Notif background otomatis ditampilkan FCM jika ada "notification" payload
-  // Kalau pakai "data only", tampilkan manual:
   FcmService._showLocalNotification(message);
 }
 
@@ -26,7 +23,6 @@ class FcmService {
   );
 
   static Future<void> init() async {
-    // 1. Setup local notifications
     await _localNotif
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
@@ -44,13 +40,8 @@ class FcmService {
       },
     );
 
-    // 2. Minta permission
     await _fcm.requestPermission(alert: true, badge: true, sound: true);
 
-    // 3. Register background handler
-    FirebaseMessaging.onBackgroundMessage(firebaseBackgroundHandler);
-
-    // 4. Foreground: tampilkan sebagai local notification
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       _showLocalNotification(message);
     });

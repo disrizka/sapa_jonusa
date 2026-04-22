@@ -19,7 +19,9 @@
         <meta-data 
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyDdjoJF_sc0UExgaWE3vpA71hmswR_WYJM"/>
-
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="sapa_high_importance" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
