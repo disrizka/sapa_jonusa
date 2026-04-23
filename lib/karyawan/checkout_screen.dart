@@ -44,8 +44,6 @@ class _CheckoutScreenState extends State<CheckoutScreen>
   bool _isHoliday = false;
   String _holidayName = "";
 
-  // true  → WAJIB dalam radius; di luar = TOMBOL DIBLOKIR
-  // false → bebas dari mana saja, tapi = pending approval
   bool _isRadiusEnforced = true;
 
   bool _isLoading = false;
@@ -73,12 +71,18 @@ class _CheckoutScreenState extends State<CheckoutScreen>
 
   String get _minAllowedTimeStr => DateFormat('HH:mm').format(_minAllowedTime);
 
-  // DIBLOKIR jika enforcement ON dan di luar radius
   bool get _isBlockedByRadius => _isRadiusEnforced && !_isInRadius;
 
-  // Auto-approve: enforcement ON + dalam radius + waktu ok + bukan libur
   bool get _willAutoApprove =>
       !_isHoliday && !_isTooEarly && _isRadiusEnforced && _isInRadius;
+
+  // ── FIX: getter terpisah untuk buka kamera ─────────────────────────────────
+  bool get _canTakePhoto =>
+      !_isHoliday &&
+      !_isTooEarly &&
+      !_isBlockedByRadius &&
+      !_isSubmitting &&
+      _currentPosition != null;
 
   bool get _canSubmit =>
       _imageFile != null &&
@@ -835,7 +839,6 @@ class _CheckoutScreenState extends State<CheckoutScreen>
       subtitleText =
           'Jadwal Pulang: $_checkOutLimit  •  Minimal Absen: $_minAllowedTimeStr';
     } else if (_isBlockedByRadius) {
-      // Radius ON + di luar → BLOKIR TOTAL
       mainColor = kErrorRed;
       statusIcon = Icons.block_rounded;
       statusText = 'Diluar Radius — Absen Ditolak';
@@ -939,9 +942,11 @@ class _CheckoutScreenState extends State<CheckoutScreen>
     );
   }
 
+  // ── Photo Section ─────────────────────────────────────────────────────────
   Widget _buildPhotoSection() {
     return GestureDetector(
-      onTap: _canSubmit || _imageFile != null ? _takePhoto : null,
+      // FIX: gunakan _canTakePhoto, bukan _canSubmit || _imageFile != null
+      onTap: _canTakePhoto ? _takePhoto : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         width: double.infinity,
@@ -1091,7 +1096,6 @@ class _CheckoutScreenState extends State<CheckoutScreen>
       label = 'BELUM WAKTUNYA PULANG';
       icon = Icons.access_time_rounded;
     } else if (_isBlockedByRadius) {
-      // Radius ON + di luar → MERAH, DISABLED
       colors = [kErrorRed, const Color(0xFFEF5350)];
       label = 'DILUAR RADIUS — TIDAK BISA ABSEN';
       icon = Icons.block_rounded;
@@ -1104,7 +1108,6 @@ class _CheckoutScreenState extends State<CheckoutScreen>
       label = 'ABSEN PULANG';
       icon = Icons.logout_rounded;
     } else {
-      // Radius OFF → bisa submit tapi pending
       colors = [kDeepBlue, kAccentBlue];
       label = 'KIRIM ABSENSI (PERSETUJUAN)';
       icon = Icons.admin_panel_settings_outlined;

@@ -20,7 +20,6 @@ class _NotificationScreenState extends State<NotificationScreen> {
   void initState() {
     super.initState();
     _fetchNotificationList();
-    // _markNotificationsAsRead() sengaja dihapus dari sini agar badge tidak hilang otomatis
   }
 
   Future<void> _fetchNotificationList() async {
@@ -101,21 +100,20 @@ class _NotificationScreenState extends State<NotificationScreen> {
             ),
         ],
       ),
-      body:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : _notifList.isEmpty
-              ? _buildEmptyState()
-              : RefreshIndicator(
-                onRefresh: _fetchNotificationList,
-                child: ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _notifList.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder:
-                      (context, index) => _buildNotifCard(_notifList[index]),
-                ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _notifList.isEmpty
+          ? _buildEmptyState()
+          : RefreshIndicator(
+              onRefresh: _fetchNotificationList,
+              child: ListView.separated(
+                padding: const EdgeInsets.all(16),
+                itemCount: _notifList.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, index) =>
+                    _buildNotifCard(_notifList[index]),
               ),
+            ),
     );
   }
 
@@ -158,10 +156,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border:
-            isUnread
-                ? Border.all(color: color.withOpacity(0.5), width: 1.5)
-                : null,
+        border: isUnread
+            ? Border.all(color: color.withOpacity(0.5), width: 1.5)
+            : null,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),

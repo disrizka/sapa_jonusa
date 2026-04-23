@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:sapa_jonusa/auth/splash_screen.dart';
 import 'package:sapa_jonusa/service/fcm_service.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -18,8 +19,13 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
 
-  // WAJIB sebelum runApp
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  await [
+    Permission.location,
+    Permission.camera,
+    Permission.notification,
+  ].request();
 
   await FcmService.init();
   await initializeDateFormatting('id_ID', null);
@@ -50,7 +56,7 @@ class MyApp extends StatelessWidget {
           foregroundColor: Colors.black,
         ),
       ),
-      home: const SplashScreen(),
+      home: const SplashScreen(), // ← tetap langsung ke SplashScreen
     );
   }
 }
