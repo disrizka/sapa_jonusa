@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 @pragma('vm:entry-point')
 Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  FcmService._showLocalNotification(message);
+  // FcmService._showLocalNotification(message);
 }
 
 class FcmService {

@@ -23,11 +23,12 @@ class _CutiScreenState extends State<CutiScreen> {
   File? _file;
   bool _loading = false;
 
-  final List<String> _categories = [
-    "Cuti Tahunan",
-    "Cuti Khusus",
-    "Cuti Tidak Dibayar",
-  ];
+  // Map label tampilan → value ENUM di database
+  final Map<String, String> _categoryMap = {
+    "Cuti Tahunan": "cuti_tahunan",
+    "Cuti Khusus": "cuti_khusus",
+    "Cuti Tidak Dibayar": "cuti_tidak_dibayar",
+  };
 
   Future<void> _sendData() async {
     if (_startDate == null ||
@@ -43,6 +44,11 @@ class _CutiScreenState extends State<CutiScreen> {
     setState(() => _loading = true);
     try {
       String? token = await _storage.read(key: 'auth_token');
+
+      // Ambil value ENUM yang sesuai DB dari map
+      final String categoryValue =
+          _categoryMap[_selectedCategory!] ?? _selectedCategory!;
+
       var request = http.MultipartRequest(
         'POST',
         Uri.parse('${Api.baseUrl}/api/presence/permissions'),
@@ -52,8 +58,9 @@ class _CutiScreenState extends State<CutiScreen> {
         'Authorization': 'Bearer $token',
         'Accept': 'application/json',
       });
+
       request.fields['type'] = 'cuti';
-      request.fields['category'] = _selectedCategory!;
+      request.fields['category'] = categoryValue; // ✅ value sesuai ENUM DB
       request.fields['start_date'] = DateFormat(
         'yyyy-MM-dd',
       ).format(_startDate!);
@@ -69,6 +76,21 @@ class _CutiScreenState extends State<CutiScreen> {
       var res = await request.send();
       if (res.statusCode == 201) {
         if (mounted) Navigator.pop(context);
+      } else {
+        // Tampilkan error jika status bukan 201
+        final resBody = await res.stream.bytesToString();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Gagal mengirim: ${res.statusCode}")),
+          );
+        }
+        debugPrint('Response error: $resBody');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Terjadi kesalahan: $e")));
       }
     } finally {
       setState(() => _loading = false);
@@ -82,12 +104,13 @@ class _CutiScreenState extends State<CutiScreen> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          DropdownButtonFormField(
-            items:
-                _categories
-                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                    .toList(),
-            onChanged: (v) => _selectedCategory = v as String?,
+          DropdownButtonFormField<String>(
+            items: _categoryMap.keys
+                .map(
+                  (label) => DropdownMenuItem(value: label, child: Text(label)),
+                )
+                .toList(),
+            onChanged: (v) => setState(() => _selectedCategory = v),
             decoration: const InputDecoration(
               labelText: "Pilih Jenis Cuti",
               border: OutlineInputBorder(),
@@ -106,27 +129,26 @@ class _CutiScreenState extends State<CutiScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          ElevatedButton.icon(
-            onPressed: () async {
-              var result = await FilePicker.platform.pickFiles(
-                type: FileType.image,
-              );
-              if (result != null)
-                setState(() => _file = File(result.files.single.path!));
-            },
-            icon: const Icon(Icons.attach_file),
-            label: Text(_file == null ? "Upload Lampiran" : "File Terpilih"),
-          ),
+          // ElevatedButton.icon(
+          //   onPressed: () async {
+          //     var result = await FilePicker.platform.pickFiles(
+          //       type: FileType.image,
+          //     );
+          //     if (result != null)
+          //       setState(() => _file = File(result.files.single.path!));
+          //   },
+          //   icon: const Icon(Icons.attach_file),
+          //   label: Text(_file == null ? "Upload Lampiran" : "File Terpilih"),
+          // ),
           const SizedBox(height: 30),
           ElevatedButton(
             onPressed: _loading ? null : _sendData,
             style: ElevatedButton.styleFrom(
               minimumSize: const Size(double.infinity, 50),
             ),
-            child:
-                _loading
-                    ? const CircularProgressIndicator()
-                    : const Text("KIRIM"),
+            child: _loading
+                ? const CircularProgressIndicator()
+                : const Text("KIRIM"),
           ),
         ],
       ),

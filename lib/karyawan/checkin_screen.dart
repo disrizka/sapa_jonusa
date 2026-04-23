@@ -52,7 +52,7 @@ class _CheckinScreenState extends State<CheckinScreen>
   bool _isRadiusEnforced = true;
 
   // ── State ─────────────────────────────────────────────────────────────────
-  bool _isLoading = false;
+  bool _isLoading = true;
   bool _isSubmitting = false;
   bool _isLate = false;
   bool _isInRadius = false;
@@ -68,7 +68,6 @@ class _CheckinScreenState extends State<CheckinScreen>
   bool get _willAutoApprove =>
       !_isHoliday && !_isLate && _isRadiusEnforced && _isInRadius;
 
-  // ── FIX: getter terpisah untuk buka kamera ─────────────────────────────────
   bool get _canTakePhoto =>
       !_isHoliday &&
       !_isLate &&
@@ -87,7 +86,6 @@ class _CheckinScreenState extends State<CheckinScreen>
   @override
   void initState() {
     super.initState();
-    debugPrint('=== CHECKIN SCREEN INIT ===');
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -105,19 +103,21 @@ class _CheckinScreenState extends State<CheckinScreen>
     super.dispose();
   }
 
+  // ── FIX: config & lokasi paralel, loading selesai setelah keduanya done ───
   Future<void> _init() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
-    await _fetchOfficeConfig();
-    await _fetchLocation();
+    try {
+      await Future.wait([_fetchOfficeConfig(), _fetchLocation()]);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _fetchOfficeConfig() async {
     try {
       final token = await _storage.read(key: 'auth_token');
-
-      if (token == null || token.isEmpty) {
-        return;
-      }
+      if (token == null || token.isEmpty) return;
 
       final response = await http.get(
         Uri.parse('${Api.baseUrl}/api/attendance/config'),
@@ -129,6 +129,7 @@ class _CheckinScreenState extends State<CheckinScreen>
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body)['data'];
+        if (!mounted) return;
         setState(() {
           _officeLat = double.parse(data['latitude'].toString());
           _officeLng = double.parse(data['longitude'].toString());
@@ -168,11 +169,11 @@ class _CheckinScreenState extends State<CheckinScreen>
       int.parse(parts[1]),
     );
     final deadline = limit.add(Duration(minutes: _tolerance));
-    setState(() => _isLate = now.isAfter(deadline));
+    if (mounted) setState(() => _isLate = now.isAfter(deadline));
   }
 
+  // ── FIX: tidak set _isLoading sendiri, dihandle oleh _init ───────────────
   Future<void> _fetchLocation() async {
-    setState(() => _isLoading = true);
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) throw 'GPS tidak aktif. Silakan aktifkan GPS.';
@@ -190,16 +191,12 @@ class _CheckinScreenState extends State<CheckinScreen>
         desiredAccuracy: LocationAccuracy.high,
       );
       final ll = LatLng(pos.latitude, pos.longitude);
-      setState(() {
-        _currentPosition = ll;
-        _isLoading = false;
-      });
+      if (!mounted) return;
+      setState(() => _currentPosition = ll);
       _validateRadius(ll);
-      _moveCamera(ll);
-      _getAddressFromLatLng(ll);
+      _getAddressFromLatLng(ll); // background, tidak perlu await
     } catch (e) {
-      setState(() => _isLoading = false);
-      _showSnackBar("Gagal mengambil lokasi: $e", isError: true);
+      if (mounted) _showSnackBar("Gagal mengambil lokasi: $e", isError: true);
     }
   }
 
@@ -210,10 +207,12 @@ class _CheckinScreenState extends State<CheckinScreen>
       _officeLat,
       _officeLng,
     );
-    setState(() {
-      _distanceFromOffice = d;
-      _isInRadius = d <= _officeRadius;
-    });
+    if (mounted) {
+      setState(() {
+        _distanceFromOffice = d;
+        _isInRadius = d <= _officeRadius;
+      });
+    }
   }
 
   Future<void> _takePhoto() async {
@@ -222,7 +221,9 @@ class _CheckinScreenState extends State<CheckinScreen>
       preferredCameraDevice: CameraDevice.front,
       imageQuality: 50,
     );
-    if (picked != null) setState(() => _imageFile = File(picked.path));
+    if (picked != null && mounted) {
+      setState(() => _imageFile = File(picked.path));
+    }
   }
 
   Future<void> _submitCheckIn() async {
@@ -233,12 +234,10 @@ class _CheckinScreenState extends State<CheckinScreen>
         'POST',
         Uri.parse('${Api.baseUrl}/api/presence/check-in'),
       );
-
       req.headers.addAll({
         'Authorization': 'Bearer $token',
         'Accept': 'application/json',
       });
-
       req.fields['latitude'] = _currentPosition!.latitude.toString();
       req.fields['longitude'] = _currentPosition!.longitude.toString();
       req.fields['notes'] = _notesController.text.isEmpty
@@ -252,6 +251,7 @@ class _CheckinScreenState extends State<CheckinScreen>
       final resp = await http.Response.fromStream(res);
       final body = json.decode(resp.body);
 
+      if (!mounted) return;
       if (resp.statusCode == 201 || resp.statusCode == 200) {
         _showSuccessDialog(
           autoApproved: body['auto_approved'] == true,
@@ -262,14 +262,15 @@ class _CheckinScreenState extends State<CheckinScreen>
         _showSnackBar(body['message'] ?? 'Gagal Absen', isError: true);
       }
     } catch (e) {
-      _showSnackBar('Kesalahan koneksi.', isError: true);
+      if (mounted) _showSnackBar('Kesalahan koneksi.', isError: true);
     } finally {
-      setState(() => _isSubmitting = false);
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────
   void _moveCamera(LatLng pos) async {
+    if (!_controller.isCompleted) return;
     final c = await _controller.future;
     c.animateCamera(CameraUpdate.newLatLngZoom(pos, 17));
   }
@@ -277,13 +278,16 @@ class _CheckinScreenState extends State<CheckinScreen>
   Future<void> _getAddressFromLatLng(LatLng pos) async {
     try {
       final p = await placemarkFromCoordinates(pos.latitude, pos.longitude);
-      setState(
-        () => _currentAddress = '${p.first.street}, ${p.first.locality}',
-      );
+      if (mounted) {
+        setState(
+          () => _currentAddress = '${p.first.street}, ${p.first.locality}',
+        );
+      }
     } catch (_) {}
   }
 
   void _showSnackBar(String msg, {bool isError = false}) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -504,19 +508,17 @@ class _CheckinScreenState extends State<CheckinScreen>
           ),
         ),
       ),
-      body: _isLoading ? _buildLoadingScreen() : _buildMapBody(),
+      // FIX: Map selalu di background, loading overlay di atasnya
+      body: Stack(
+        children: [_buildMapBody(), if (_isLoading) _buildLoadingOverlay()],
+      ),
     );
   }
 
-  Widget _buildLoadingScreen() {
+  // ── Loading sebagai overlay, bukan replace seluruh body ──────────────────
+  Widget _buildLoadingOverlay() {
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [kDeepBlue, kAccentBlue, kSkyBlue],
-        ),
-      ),
+      color: kDeepBlue.withOpacity(0.85),
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -562,27 +564,27 @@ class _CheckinScreenState extends State<CheckinScreen>
   }
 
   Widget _buildMapBody() {
-    if (_currentPosition == null) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.location_off, color: Colors.red, size: 50),
-            SizedBox(height: 10),
-            Text('Gagal mendapatkan koordinat lokasi.'),
-          ],
-        ),
-      );
-    }
+    // FIX: fallback ke koordinat kantor agar GoogleMap tidak null
+    final initialTarget = _currentPosition ?? LatLng(_officeLat, _officeLng);
+
     return Stack(
       children: [
         GoogleMap(
           myLocationEnabled: true,
+          myLocationButtonEnabled: true,
           initialCameraPosition: CameraPosition(
-            target: _currentPosition!,
+            target: initialTarget,
             zoom: 17,
           ),
-          onMapCreated: (c) => _controller.complete(c),
+          onMapCreated: (c) {
+            if (!_controller.isCompleted) _controller.complete(c);
+            // Pindahkan kamera ke posisi user jika sudah tersedia
+            if (_currentPosition != null) {
+              c.animateCamera(
+                CameraUpdate.newLatLngZoom(_currentPosition!, 17),
+              );
+            }
+          },
           circles: {
             Circle(
               circleId: const CircleId('office'),
@@ -596,7 +598,8 @@ class _CheckinScreenState extends State<CheckinScreen>
             ),
           },
         ),
-        Align(alignment: Alignment.bottomCenter, child: _buildBottomPanel()),
+        if (!_isLoading)
+          Align(alignment: Alignment.bottomCenter, child: _buildBottomPanel()),
       ],
     );
   }
@@ -765,8 +768,9 @@ class _CheckinScreenState extends State<CheckinScreen>
   }
 
   Widget _buildApprovalBanner() {
-    if (_isHoliday || _isLate || _isBlockedByRadius)
+    if (_isHoliday || _isLate || _isBlockedByRadius) {
       return const SizedBox.shrink();
+    }
 
     final isAuto = _willAutoApprove;
     final color = isAuto ? kSuccessGreen : kAmber;
@@ -919,10 +923,8 @@ class _CheckinScreenState extends State<CheckinScreen>
     );
   }
 
-  // ── Photo Section ─────────────────────────────────────────────────────────
   Widget _buildPhotoSection() {
     return GestureDetector(
-      // FIX: gunakan _canTakePhoto, bukan _canSubmit || _imageFile != null
       onTap: _canTakePhoto ? _takePhoto : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
@@ -1059,7 +1061,6 @@ class _CheckinScreenState extends State<CheckinScreen>
     );
   }
 
-  // ── Submit Button ─────────────────────────────────────────────────────────
   Widget _buildSubmitButton() {
     List<Color> colors;
     String label;

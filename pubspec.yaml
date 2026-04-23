@@ -38,7 +38,7 @@ dependencies:
   path_provider: ^2.1.2
   geocoding: ^3.0.0
   geolocator: ^13.0.4
-  google_maps_flutter: ^2.12.1
+  google_maps_flutter: ^2.6.0
   intl: ^0.20.2
   # record: ^5.1.0
   audioplayers: ^5.2.1
