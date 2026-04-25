@@ -19,7 +19,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-  
+
   await Firebase.initializeApp();
   await [
     Permission.location,
@@ -39,7 +39,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'SAPA Jonusa',
+      title: 'Sapa Jonusa',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,

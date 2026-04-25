@@ -264,7 +264,7 @@ class _KaryawanHomeScreenState extends State<KaryawanHomeScreen>
             _AbsenOption(
               icon: Icons.beach_access_rounded,
               label: 'Izin & Cuti',
-              description: 'Tahunan, Khusus, atau Tanpa Gaji',
+              description: 'Mengajukan Cuti/Izin dengan laporan',
               color: _kAmber,
               onTap: () => _goToAbsenPage(const CutiScreen()),
             ),
