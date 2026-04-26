@@ -7,20 +7,22 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sapa_jonusa/api/api.dart' as Api;
 
-// ─── Palette: White-dominant, Navy accent ────────────────────────
-const _bg = Color(0xFFF2F5FB);
+// ─── Design Tokens (sama dengan SakitScreen) ───────────────────────
+const _primary = Color(0xFF1565C0);
+const _primaryTint = Color(0xFFEBF3FF);
+const _primaryBorder = Color(0xFFD8E8FF);
+const _bg = Color(0xFFF0F5FF);
 const _white = Color(0xFFFFFFFF);
-const _navy = Color(0xFF1A3A6B);
-const _navyMed = Color(0xFF2E55A0);
-const _navyTint = Color(0xFFE7EDF8);
-const _textPrimary = Color(0xFF111D35);
-const _textSub = Color(0xFF556080);
-const _textHint = Color(0xFF9CAABF);
-const _border = Color(0xFFDDE3EE);
-// ─────────────────────────────────────────────────────────────────
+const _surface = Color(0xFFF7FAFF);
+const _textPrimary = Color(0xFF0D3B7A);
+const _textSub = Color(0xFF4A6B9A);
+const _textHint = Color(0xFFA0BCDA);
+const _border = Color(0xFFD8E8FF);
+// ───────────────────────────────────────────────────────────────────
 
 class CutiScreen extends StatefulWidget {
   const CutiScreen({super.key});
+
   @override
   State<CutiScreen> createState() => _CutiScreenState();
 }
@@ -38,10 +40,23 @@ class _CutiScreenState extends State<CutiScreen>
 
   late final AnimationController _fadeCtrl = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 450),
+    duration: const Duration(milliseconds: 500),
   )..forward();
 
-  final Map<String, String> _typeMap = {"Izin": "izin", "Cuti": "cuti"};
+  final List<_JenisOption> _options = [
+    _JenisOption(
+      label: "Izin",
+      value: "izin",
+      icon: Icons.timer_rounded,
+      desc: "Izin tidak masuk kerja",
+    ),
+    _JenisOption(
+      label: "Cuti",
+      value: "cuti",
+      icon: Icons.beach_access_rounded,
+      desc: "Cuti tahunan / resmi",
+    ),
+  ];
 
   @override
   void initState() {
@@ -49,7 +64,7 @@ class _CutiScreenState extends State<CutiScreen>
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
+        statusBarIconBrightness: Brightness.light,
       ),
     );
   }
@@ -66,22 +81,31 @@ class _CutiScreenState extends State<CutiScreen>
       type: FileType.custom,
       allowedExtensions: ['pdf', 'doc', 'docx'],
     );
-    if (result != null)
+    if (result != null) {
       setState(() => _docFile = File(result.files.single.path!));
+    }
+  }
+
+  int _countDays() {
+    if (_startDate == null || _endDate == null) return 0;
+    return _endDate!.difference(_startDate!).inDays + 1;
   }
 
   Future<void> _sendData() async {
-    if (_startDate == null ||
+    if (_selectedType == null ||
+        _startDate == null ||
         _endDate == null ||
-        _selectedType == null ||
-        _reasonController.text.isEmpty) {
-      _snack("Lengkapi semua form!", error: true);
+        _reasonController.text.trim().isEmpty) {
+      _snack("Lengkapi semua field yang wajib diisi", error: true);
+      return;
+    }
+    if (_endDate!.isBefore(_startDate!)) {
+      _snack("Tanggal selesai tidak boleh sebelum tanggal mulai", error: true);
       return;
     }
     setState(() => _loading = true);
     try {
       final token = await _storage.read(key: 'auth_token');
-      final typeValue = _typeMap[_selectedType!] ?? _selectedType!;
       final req =
           http.MultipartRequest(
               'POST',
@@ -92,386 +116,97 @@ class _CutiScreenState extends State<CutiScreen>
               'Accept': 'application/json',
             })
             ..fields.addAll({
-              'type': typeValue,
-              'category': typeValue,
+              'type': _selectedType!,
+              'category': _selectedType!,
               'start_date': DateFormat('yyyy-MM-dd').format(_startDate!),
               'end_date': DateFormat('yyyy-MM-dd').format(_endDate!),
               'reason': _reasonController.text,
             });
-      if (_docFile != null)
+
+      if (_docFile != null) {
         req.files.add(
           await http.MultipartFile.fromPath('attachment_file', _docFile!.path),
         );
+      }
+
       final res = await req.send();
-      if (res.statusCode == 201) {
-        if (mounted) {
-          _snack("Pengajuan berhasil dikirim!");
-          Navigator.pop(context);
-        }
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        _snack("Pengajuan berhasil dikirim");
+        if (mounted) Navigator.pop(context);
       } else {
-        debugPrint(await res.stream.bytesToString());
-        if (mounted) _snack("Gagal mengirim: ${res.statusCode}", error: true);
+        _snack("Gagal mengirim: ${res.statusCode}", error: true);
       }
     } catch (e) {
-      if (mounted) _snack("Terjadi kesalahan: $e", error: true);
+      _snack("Terjadi kesalahan: $e", error: true);
     } finally {
       setState(() => _loading = false);
     }
   }
 
-  void _snack(String msg, {bool error = false}) =>
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            msg,
-            style: const TextStyle(color: _white, fontWeight: FontWeight.w500),
-          ),
-          backgroundColor: error ? Colors.red.shade700 : _navyMed,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          margin: const EdgeInsets.all(16),
+  void _snack(String msg, {bool error = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              error
+                  ? Icons.error_outline_rounded
+                  : Icons.check_circle_outline_rounded,
+              color: _white,
+              size: 16,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                msg,
+                style: const TextStyle(
+                  color: _white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ],
         ),
-      );
+        backgroundColor: error ? const Color(0xFFB71C1C) : _primary,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        elevation: 0,
+      ),
+    );
+  }
 
+  // ─── BUILD ─────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _bg,
       body: FadeTransition(
         opacity: CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut),
-        child: CustomScrollView(
-          slivers: [
-            // ── App Bar ──────────────────────────────────────
-            SliverAppBar(
-              expandedHeight: 175,
-              pinned: true,
-              backgroundColor: _white,
-              elevation: 0,
-              surfaceTintColor: _white,
-              leading: Padding(
-                padding: const EdgeInsets.all(10),
-                child: InkWell(
-                  onTap: () => Navigator.pop(context),
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: _bg,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: _border),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back_ios_new_rounded,
-                      size: 15,
-                      color: _textPrimary,
-                    ),
-                  ),
+        child: Column(
+          children: [
+            _buildHeader(context),
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 18, 16, 32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildJenisCard(),
+                    const SizedBox(height: 14),
+                    _buildDateCard(),
+                    const SizedBox(height: 14),
+                    _buildReasonCard(),
+                    const SizedBox(height: 14),
+                    _buildAttachmentCard(),
+                    const SizedBox(height: 14),
+                    _buildInfoNote(),
+                    const SizedBox(height: 20),
+                    _buildSubmitButton(),
+                  ],
                 ),
-              ),
-              flexibleSpace: FlexibleSpaceBar(
-                titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
-                title: const _AppBarTitle(
-                  top: "Pengajuan",
-                  bottom: "Izin / Cuti",
-                ),
-                background: Container(
-                  color: _white,
-                  child: Stack(
-                    children: [
-                      Positioned(
-                        right: 20,
-                        top: 40,
-                        child: Container(
-                          width: 90,
-                          height: 90,
-                          decoration: BoxDecoration(
-                            color: _navyTint,
-                            borderRadius: BorderRadius.circular(22),
-                          ),
-                          child: const Icon(
-                            Icons.event_available_rounded,
-                            color: _navy,
-                            size: 42,
-                          ),
-                        ),
-                      ),
-                      // subtle bottom stripe
-                      Positioned(
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        child: Container(
-                          height: 3,
-                          color: _navy.withOpacity(0.06),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              bottom: PreferredSize(
-                preferredSize: const Size.fromHeight(1),
-                child: Divider(height: 1, color: _border),
-              ),
-            ),
-
-            // ── Form Body ────────────────────────────────────
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  // Jenis
-                  _SectionLabel(
-                    text: "Jenis Pengajuan",
-                    icon: Icons.category_outlined,
-                  ),
-                  const SizedBox(height: 8),
-                  _FieldCard(
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _selectedType,
-                        isExpanded: true,
-                        hint: const Text(
-                          "Pilih jenis pengajuan",
-                          style: TextStyle(color: _textHint, fontSize: 14),
-                        ),
-                        icon: const Icon(
-                          Icons.keyboard_arrow_down_rounded,
-                          color: _textSub,
-                        ),
-                        style: const TextStyle(
-                          color: _textPrimary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        dropdownColor: _white,
-                        items: _typeMap.keys
-                            .map(
-                              (label) => DropdownMenuItem(
-                                value: label,
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 32,
-                                      height: 32,
-                                      decoration: BoxDecoration(
-                                        color: _navyTint,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Icon(
-                                        label == "Cuti"
-                                            ? Icons.beach_access_rounded
-                                            : Icons.timer_rounded,
-                                        color: _navy,
-                                        size: 16,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Text(label),
-                                  ],
-                                ),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (v) => setState(() => _selectedType = v),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Tanggal
-                  _SectionLabel(
-                    text: "Rentang Tanggal",
-                    icon: Icons.date_range_rounded,
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildDateCard(
-                          "Mulai",
-                          _startDate,
-                          (d) => setState(() => _startDate = d),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildDateCard(
-                          "Selesai",
-                          _endDate,
-                          (d) => setState(() => _endDate = d),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Alasan
-                  _SectionLabel(text: "Alasan", icon: Icons.edit_note_rounded),
-                  const SizedBox(height: 8),
-                  _FieldCard(
-                    padding: const EdgeInsets.all(14),
-                    child: TextField(
-                      controller: _reasonController,
-                      maxLines: 4,
-                      style: const TextStyle(color: _textPrimary, fontSize: 14),
-                      decoration: const InputDecoration.collapsed(
-                        hintText: "Tuliskan alasan pengajuan Anda...",
-                        hintStyle: TextStyle(color: _textHint, fontSize: 14),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Lampiran
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const _SectionLabel(
-                        text: "Lampiran Dokumen",
-                        icon: Icons.attach_file_rounded,
-                      ),
-                      _Badge(
-                        "Opsional",
-                        bgColor: const Color(0xFFFFF3E0),
-                        textColor: const Color(0xFFBF6000),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: _pickDocument,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _docFile != null ? _navyTint : _white,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: _docFile != null ? _navyMed : _border,
-                          width: _docFile != null ? 1.5 : 1,
-                        ),
-                      ),
-                      child: _docFile == null
-                          ? Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(7),
-                                  decoration: BoxDecoration(
-                                    color: _navyTint,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Icon(
-                                    Icons.upload_file_rounded,
-                                    color: _navy,
-                                    size: 18,
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                const Text(
-                                  "Upload PDF / Word",
-                                  style: TextStyle(
-                                    color: _textSub,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            )
-                          : Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(7),
-                                  decoration: BoxDecoration(
-                                    color: _navy,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Icon(
-                                    Icons.description_rounded,
-                                    color: _white,
-                                    size: 18,
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    _docFile!.path.split('/').last,
-                                    style: const TextStyle(
-                                      color: _textPrimary,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                GestureDetector(
-                                  onTap: () => setState(() => _docFile = null),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(5),
-                                    decoration: BoxDecoration(
-                                      color: Colors.red.shade50,
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Icon(
-                                      Icons.close_rounded,
-                                      size: 14,
-                                      color: Colors.red.shade400,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Submit
-                  SizedBox(
-                    height: 54,
-                    child: ElevatedButton(
-                      onPressed: _loading ? null : _sendData,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _navy,
-                        disabledBackgroundColor: _border,
-                        foregroundColor: _white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      child: _loading
-                          ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                color: _white,
-                                strokeWidth: 2.5,
-                              ),
-                            )
-                          : const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.send_rounded, size: 17),
-                                SizedBox(width: 8),
-                                Text(
-                                  "Kirim Pengajuan",
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 15,
-                                    letterSpacing: 0.2,
-                                  ),
-                                ),
-                              ],
-                            ),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                ]),
               ),
             ),
           ],
@@ -480,24 +215,297 @@ class _CutiScreenState extends State<CutiScreen>
     );
   }
 
-  Widget _buildDateCard(
-    String label,
-    DateTime? date,
-    Function(DateTime) onPick,
-  ) {
+  // ─── Header ────────────────────────────────────────────────────────
+  Widget _buildHeader(BuildContext context) {
+    return Container(
+      color: _primary,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    size: 15,
+                    color: _white,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Absensi & Kehadiran",
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.white60,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      "Izin / Cuti",
+                      style: TextStyle(
+                        fontSize: 20,
+                        color: _white,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.event_available_rounded,
+                  color: _white,
+                  size: 22,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─── Card Shell ────────────────────────────────────────────────────
+  Widget _buildSectionCard({
+    required IconData icon,
+    required String title,
+    String? badge,
+    Color? badgeBg,
+    Color? badgeText,
+    required Widget child,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _border, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: const BoxDecoration(
+              color: _primaryTint,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+              border: Border(bottom: BorderSide(color: _border, width: 1)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    color: _primary,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, size: 13, color: _white),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: _textPrimary,
+                      letterSpacing: 0.1,
+                    ),
+                  ),
+                ),
+                if (badge != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: badgeBg ?? _primaryBorder,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      badge,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: badgeText ?? _primary,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Padding(padding: const EdgeInsets.all(14), child: child),
+        ],
+      ),
+    );
+  }
+
+  // ─── Jenis Pengajuan Card ──────────────────────────────────────────
+  Widget _buildJenisCard() {
+    return _buildSectionCard(
+      icon: Icons.category_rounded,
+      title: "Jenis Pengajuan",
+      badge: "Wajib",
+      child: Row(
+        children: _options.map((opt) {
+          final bool sel = _selectedType == opt.value;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _selectedType = opt.value),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                margin: EdgeInsets.only(right: opt == _options.first ? 10 : 0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: sel ? _primaryTint : _surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: sel ? _primary : _border,
+                    width: sel ? 1.5 : 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: sel ? _primary : _primaryBorder,
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Icon(
+                        opt.icon,
+                        size: 16,
+                        color: sel ? _white : _textSub,
+                      ),
+                    ),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            opt.label,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: sel ? _textPrimary : _textSub,
+                            ),
+                          ),
+                          Text(
+                            opt.desc,
+                            style: const TextStyle(
+                              fontSize: 9.5,
+                              color: _textHint,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (sel)
+                      Container(
+                        width: 16,
+                        height: 16,
+                        decoration: const BoxDecoration(
+                          color: _primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.check_rounded,
+                          size: 10,
+                          color: _white,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  // ─── Date Card ─────────────────────────────────────────────────────
+  Widget _buildDateCard() {
+    final int days = _countDays();
+    return _buildSectionCard(
+      icon: Icons.date_range_rounded,
+      title: "Rentang Tanggal",
+      badge: days > 0 ? "$days Hari" : null,
+      child: Row(
+        children: [
+          Expanded(
+            child: _datePickerTile(
+              label: "MULAI",
+              date: _startDate,
+              onPick: (d) => setState(() => _startDate = d),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _datePickerTile(
+              label: "SELESAI",
+              date: _endDate,
+              onPick: (d) => setState(() => _endDate = d),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _datePickerTile({
+    required String label,
+    required DateTime? date,
+    required Function(DateTime) onPick,
+  }) {
     final bool sel = date != null;
     return GestureDetector(
       onTap: () async {
         final picked = await showDatePicker(
           context: context,
-          initialDate: DateTime.now(),
+          initialDate: _startDate ?? DateTime.now(),
           firstDate: DateTime.now(),
           lastDate: DateTime(2030),
           builder: (ctx, child) => Theme(
             data: ThemeData.light().copyWith(
               colorScheme: const ColorScheme.light(
-                primary: _navy,
+                primary: _primary,
                 onPrimary: _white,
+                surface: _white,
+                onSurface: _textPrimary,
               ),
             ),
             child: child!,
@@ -507,12 +515,12 @@ class _CutiScreenState extends State<CutiScreen>
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
         decoration: BoxDecoration(
-          color: sel ? _navyTint : _white,
-          borderRadius: BorderRadius.circular(14),
+          color: sel ? _primaryTint : _surface,
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: sel ? _navyMed : _border,
+            color: sel ? _primary : _border,
             width: sel ? 1.5 : 1,
           ),
         ),
@@ -522,18 +530,19 @@ class _CutiScreenState extends State<CutiScreen>
             Text(
               label,
               style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: sel ? _navyMed : _textHint,
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                color: sel ? _primary : _textHint,
+                letterSpacing: 0.5,
               ),
             ),
-            const SizedBox(height: 5),
+            const SizedBox(height: 6),
             Row(
               children: [
                 Icon(
                   Icons.calendar_today_rounded,
-                  size: 12,
-                  color: sel ? _navy : _textHint,
+                  size: 11,
+                  color: sel ? _primary : _textHint,
                 ),
                 const SizedBox(width: 5),
                 Flexible(
@@ -553,99 +562,252 @@ class _CutiScreenState extends State<CutiScreen>
       ),
     );
   }
-}
 
-// ── Shared small widgets ──────────────────────────────────────────
-
-class _AppBarTitle extends StatelessWidget {
-  const _AppBarTitle({required this.top, required this.bottom});
-  final String top, bottom;
-  @override
-  Widget build(BuildContext context) => Column(
-    mainAxisSize: MainAxisSize.min,
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        top,
-        style: const TextStyle(
-          fontSize: 12,
-          color: _textSub,
-          fontWeight: FontWeight.w400,
-          height: 1,
+  // ─── Reason Card ───────────────────────────────────────────────────
+  Widget _buildReasonCard() {
+    return _buildSectionCard(
+      icon: Icons.edit_note_rounded,
+      title: "Alasan Pengajuan",
+      child: Container(
+        decoration: BoxDecoration(
+          color: _surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: _border),
+        ),
+        child: TextField(
+          controller: _reasonController,
+          maxLines: 4,
+          style: const TextStyle(
+            color: _textPrimary,
+            fontSize: 13.5,
+            height: 1.55,
+          ),
+          decoration: const InputDecoration(
+            contentPadding: EdgeInsets.all(13),
+            border: InputBorder.none,
+            hintText: "Tuliskan alasan pengajuan Anda...",
+            hintStyle: TextStyle(color: _textHint, fontSize: 13.5),
+          ),
         ),
       ),
-      Text(
-        bottom,
-        style: const TextStyle(
-          fontSize: 20,
-          color: _textPrimary,
-          fontWeight: FontWeight.w800,
-          height: 1.2,
+    );
+  }
+
+  // ─── Attachment Card ───────────────────────────────────────────────
+  Widget _buildAttachmentCard() {
+    final bool picked = _docFile != null;
+    return _buildSectionCard(
+      icon: Icons.attach_file_rounded,
+      title: "Lampiran Dokumen",
+      badge: "Opsional",
+      badgeBg: const Color(0xFFFFF3E0),
+      badgeText: const Color(0xFFBF6000),
+      child: GestureDetector(
+        onTap: _pickDocument,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          decoration: BoxDecoration(
+            color: picked ? _primaryTint : _surface,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: picked ? _primary : _border,
+              width: picked ? 1.5 : 1,
+            ),
+          ),
+          child: picked ? _docPickedRow() : _docEmptyRow(),
         ),
       ),
-    ],
-  );
-}
+    );
+  }
 
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel({required this.text, required this.icon});
-  final String text;
-  final IconData icon;
-  @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Icon(icon, size: 14, color: _navy),
-      const SizedBox(width: 5),
-      Text(
-        text,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          color: _textSub,
-          letterSpacing: 0.2,
+  Widget _docEmptyRow() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: _primaryTint,
+            borderRadius: BorderRadius.circular(9),
+            border: Border.all(color: _primaryBorder),
+          ),
+          child: const Icon(
+            Icons.upload_file_rounded,
+            size: 17,
+            color: _primary,
+          ),
         ),
+        const SizedBox(width: 10),
+        const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Upload Lampiran",
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: _textPrimary,
+              ),
+            ),
+            Text(
+              "PDF / DOC / DOCX",
+              style: TextStyle(fontSize: 11, color: _textHint),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _docPickedRow() {
+    return Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: _primary,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: const Icon(Icons.description_rounded, size: 17, color: _white),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _docFile!.path.split('/').last,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: _textPrimary,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const Text(
+                "Dokumen terpilih",
+                style: TextStyle(fontSize: 10.5, color: _textSub),
+              ),
+            ],
+          ),
+        ),
+        GestureDetector(
+          onTap: () => setState(() => _docFile = null),
+          child: Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFE8E8),
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: const Icon(
+              Icons.close_rounded,
+              size: 13,
+              color: Color(0xFFB71C1C),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─── Info Note ─────────────────────────────────────────────────────
+  Widget _buildInfoNote() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      decoration: BoxDecoration(
+        color: _primaryTint,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _primaryBorder),
       ),
-    ],
-  );
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 18,
+            height: 18,
+            decoration: const BoxDecoration(
+              color: _primary,
+              shape: BoxShape.circle,
+            ),
+            child: const Center(
+              child: Text(
+                "i",
+                style: TextStyle(
+                  color: _white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              "Pastikan rentang tanggal dan alasan pengajuan diisi dengan benar. Lampiran dokumen bersifat opsional namun disarankan.",
+              style: TextStyle(fontSize: 11.5, color: _textSub, height: 1.45),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── Submit Button ─────────────────────────────────────────────────
+  Widget _buildSubmitButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: ElevatedButton(
+        onPressed: _loading ? null : _sendData,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _primary,
+          disabledBackgroundColor: _border,
+          foregroundColor: _white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        child: _loading
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(color: _white, strokeWidth: 2),
+              )
+            : const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.send_rounded, size: 17),
+                  SizedBox(width: 8),
+                  Text(
+                    "Kirim Pengajuan",
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
 }
 
-class _FieldCard extends StatelessWidget {
-  const _FieldCard({
-    required this.child,
-    this.padding = const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+// ─── Model ─────────────────────────────────────────────────────────
+class _JenisOption {
+  const _JenisOption({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.desc,
   });
-  final Widget child;
-  final EdgeInsets padding;
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: padding,
-    decoration: BoxDecoration(
-      color: _white,
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: _border),
-    ),
-    child: child,
-  );
-}
-
-class _Badge extends StatelessWidget {
-  const _Badge(this.label, {required this.bgColor, required this.textColor});
   final String label;
-  final Color bgColor, textColor;
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-    decoration: BoxDecoration(
-      color: bgColor,
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: Text(
-      label,
-      style: TextStyle(
-        fontSize: 11,
-        color: textColor,
-        fontWeight: FontWeight.w600,
-      ),
-    ),
-  );
+  final String value;
+  final IconData icon;
+  final String desc;
 }

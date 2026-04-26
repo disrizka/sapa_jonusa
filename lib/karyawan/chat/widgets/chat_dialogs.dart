@@ -296,7 +296,7 @@ class PinnedSheet extends StatelessWidget {
   );
 }
 
-// ─── Unread Divider ───────────────────────────────────────────────────────────
+// ─── Unread Divider ("Pesan Baru") ───────────────────────────────────────────
 class UnreadDivider extends StatelessWidget {
   const UnreadDivider({super.key});
 
@@ -336,6 +336,54 @@ class UnreadDivider extends StatelessWidget {
         ),
         Expanded(child: Divider(color: Colors.indigo.shade200, thickness: 1)),
       ],
+    ),
+  );
+}
+
+// ─── Date Separator (seperti WhatsApp) ───────────────────────────────────────
+/// Tampilkan label tanggal di antara pesan dari hari yang berbeda.
+/// Format: "Hari ini", "Kemarin", atau "20 Apr 2025"
+class DateSeparator extends StatelessWidget {
+  final DateTime date;
+  const DateSeparator({super.key, required this.date});
+
+  String _label() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final d = DateTime(date.year, date.month, date.day);
+
+    if (d == today) return 'Hari ini';
+    if (d == yesterday) return 'Kemarin';
+
+    // Kalau tahun sama, tidak perlu tampilkan tahun
+    if (d.year == today.year) {
+      return DateFormat('d MMM', 'id_ID').format(date);
+    }
+    return DateFormat('d MMM yyyy', 'id_ID').format(date);
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 10),
+    child: Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+        decoration: BoxDecoration(
+          // Latar gelap transparan ala WhatsApp
+          color: const Color(0xFF1A237E).withOpacity(0.10),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          _label(),
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: Colors.indigo.shade700,
+            letterSpacing: 0.2,
+          ),
+        ),
+      ),
     ),
   );
 }

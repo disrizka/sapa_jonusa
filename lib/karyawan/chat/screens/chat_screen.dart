@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -9,12 +8,25 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:sapa_jonusa/api/api.dart' as Api;
-
 import '../models/chat_message.dart';
 import '../utils/file_utils.dart';
 import '../widgets/chat_dialogs.dart';
 import '../widgets/chat_input.dart';
 import '../widgets/message_bubble.dart';
+
+sealed class _ListItem {}
+
+class _ItemDate extends _ListItem {
+  final DateTime date;
+  _ItemDate(this.date);
+}
+
+class _ItemUnread extends _ListItem {}
+
+class _ItemMessage extends _ListItem {
+  final ChatMessage msg;
+  _ItemMessage(this.msg);
+}
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -24,21 +36,25 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  // ── Controllers & Services ───────────────────────────────────────────────
   final _msgCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   final _storage = const FlutterSecureStorage();
   final _picker = ImagePicker();
 
-  // ── State ────────────────────────────────────────────────────────────────
   List<ChatMessage> _messages = [];
-  List _members = [];
+  List<_ListItem> _listItems = [];
   List<ChatMessage> _pinnedMessages = [];
-  final Set<int> _seenIds = {};
+  List _members = [];
 
-  int? _lastSeenId;
+  final Set<int> _seenIds = {};
+  int? _lastSeenIdBeforeOpen;
   bool _unreadDividerVisible = false;
 
+  /// Indeks di [_listItems]
+  /// -1 = tidak ada.
+  int _unreadDividerIndex = -1;
+
+  // ── State flags ───────────────────────────────────────────────────────────
   Timer? _timer;
   bool _isLoading = true;
   bool _isUploading = false;
@@ -47,7 +63,7 @@ class _ChatScreenState extends State<ChatScreen> {
   int? _myId;
   ChatMessage? _replyingTo;
 
-  // ── Lifecycle ────────────────────────────────────────────────────────────
+  // ─── Lifecycle ─────────────────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
@@ -62,7 +78,7 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  // ── Initialisation ───────────────────────────────────────────────────────
+  // ─── Init ──────────────────────────────────────────────────────────────────
   Future<void> _init() async {
     final token = await _storage.read(key: 'auth_token');
     final uid = await _storage.read(key: 'user_id');
@@ -83,7 +99,133 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ── API: Members ─────────────────────────────────────────────────────────
+  // ─── Build list items dengan DateSeparator & UnreadDivider ────────────────
+  /// Mengubah daftar pesan mentah menjadi daftar item siap-render.
+  /// Menyisipkan:
+  ///   1. [_ItemDate]   setiap kali tanggal berubah antar pesan
+  ///   2. [_ItemUnread] tepat sebelum pesan pertama yang belum dibaca
+  List<_ListItem> _buildListItems(
+    List<ChatMessage> messages,
+    int? lastSeenId,
+    bool showUnread,
+  ) {
+    final items = <_ListItem>[];
+    DateTime? lastDate;
+    bool unreadInserted = false;
+
+    // Cari indeks pesan terakhir yang sudah dilihat
+    int lastSeenMsgIndex = -1;
+    if (lastSeenId != null) {
+      lastSeenMsgIndex = messages.indexWhere((m) => m.id == lastSeenId);
+    }
+
+    for (int i = 0; i < messages.length; i++) {
+      final msg = messages[i];
+      final msgDate = DateTime.parse(msg.createdAt).toLocal();
+      final msgDay = DateTime(msgDate.year, msgDate.month, msgDate.day);
+
+      // 1. Date separator jika hari berbeda
+      if (lastDate == null || msgDay != lastDate) {
+        items.add(_ItemDate(msgDay));
+        lastDate = msgDay;
+      }
+
+      // 2. Unread divider tepat sebelum pesan pertama yang belum dilihat
+      //    Kondisi: showUnread aktif, belum diinsert,
+      //    dan ini adalah pesan SETELAH pesan terakhir yang dilihat.
+      if (showUnread &&
+          !unreadInserted &&
+          lastSeenMsgIndex >= 0 &&
+          i == lastSeenMsgIndex + 1) {
+        items.add(_ItemUnread());
+        unreadInserted = true;
+      }
+
+      items.add(_ItemMessage(msg));
+    }
+
+    return items;
+  }
+
+  // ─── API: Fetch Chats ──────────────────────────────────────────────────────
+  Future<void> _fetchChats({bool isInit = false}) async {
+    if (_token == null || !mounted) return;
+    try {
+      final res = await http.get(
+        Uri.parse('${Api.baseUrl}/api/chats'),
+        headers: {
+          'Authorization': 'Bearer $_token',
+          'Accept': 'application/json',
+        },
+      );
+      if (!mounted) return;
+      if (res.statusCode != 200) return;
+
+      final rawList = json.decode(res.body) as List;
+      final all = rawList
+          .map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
+          .toList();
+
+      final wasAtBottom =
+          _scrollCtrl.hasClients &&
+          _scrollCtrl.position.pixels >=
+              _scrollCtrl.position.maxScrollExtent - 80;
+
+      // ── Inisialisasi saat pertama buka ──────────────────────────────────
+      if (isInit && _myId != null) {
+        // Tandai semua pesan milik sendiri sebagai sudah dilihat
+        int? lastSeen;
+        for (final m in all) {
+          if (m.userId == _myId) {
+            lastSeen = m.id;
+            _seenIds.add(m.id);
+          }
+        }
+        _lastSeenIdBeforeOpen = lastSeen;
+
+        // Tampilkan divider hanya jika ada pesan dari orang lain
+        // setelah pesan terakhir milik kita
+        if (_lastSeenIdBeforeOpen != null) {
+          final lastIdx = all.indexWhere((m) => m.id == _lastSeenIdBeforeOpen);
+          _unreadDividerVisible = lastIdx >= 0 && lastIdx < all.length - 1;
+        } else {
+          // Tidak punya pesan sama sekali → semua pesan adalah "baru"
+          // Tapi hanya tampilkan divider jika memang ada pesan
+          _unreadDividerVisible = all.isNotEmpty;
+        }
+      }
+
+      // Bangun list items
+      final items = _buildListItems(
+        all,
+        _lastSeenIdBeforeOpen,
+        _unreadDividerVisible,
+      );
+
+      // Simpan indeks divider "Pesan baru" agar bisa di-scroll ke sana
+      _unreadDividerIndex = items.indexWhere((item) => item is _ItemUnread);
+
+      setState(() {
+        _messages = all;
+        _listItems = items;
+        _pinnedMessages = all.where((m) => m.isPinned).toList();
+        _isLoading = false;
+      });
+
+      if (_isFirstLoad) {
+        _isFirstLoad = false;
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _scrollToFirstUnread(),
+        );
+      } else if (wasAtBottom) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // ─── API: Members ─────────────────────────────────────────────────────────
   Future<void> _fetchMembers() async {
     if (_token == null || !mounted) return;
     try {
@@ -100,67 +242,7 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (_) {}
   }
 
-  // ── API: Fetch Chats ─────────────────────────────────────────────────────
-  Future<void> _fetchChats({bool isInit = false}) async {
-    if (_token == null || !mounted) return;
-    try {
-      final res = await http.get(
-        Uri.parse('${Api.baseUrl}/api/chats'),
-        headers: {
-          'Authorization': 'Bearer $_token',
-          'Accept': 'application/json',
-        },
-      );
-      if (!mounted) return;
-      if (res.statusCode == 200) {
-        final rawList = json.decode(res.body) as List;
-        final all = rawList
-            .map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
-            .toList();
-
-        final wasAtBottom =
-            _scrollCtrl.hasClients &&
-            _scrollCtrl.position.pixels >=
-                _scrollCtrl.position.maxScrollExtent - 80;
-
-        if (isInit && _myId != null) {
-          int? lastSeen;
-          for (final m in all) {
-            if (m.userId == _myId) {
-              lastSeen = m.id;
-              _seenIds.add(m.id);
-            }
-          }
-          _lastSeenId = lastSeen;
-          if (_lastSeenId != null) {
-            final lastIdx = all.indexWhere((m) => m.id == _lastSeenId);
-            _unreadDividerVisible = lastIdx >= 0 && lastIdx < all.length - 1;
-          }
-        }
-
-        setState(() {
-          _messages = all;
-          _pinnedMessages = all.where((m) => m.isPinned).toList();
-          _isLoading = false;
-        });
-
-        if (_isFirstLoad) {
-          _isFirstLoad = false;
-          WidgetsBinding.instance.addPostFrameCallback(
-            (_) => _scrollToFirstUnread(),
-          );
-        } else if (wasAtBottom) {
-          WidgetsBinding.instance.addPostFrameCallback(
-            (_) => _scrollToBottom(),
-          );
-        }
-      }
-    } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  // ── API: Send Message ─────────────────────────────────────────────────────
+  // ─── API: Send Message ────────────────────────────────────────────────────
   Future<void> _sendMessage() async {
     final msg = _msgCtrl.text.trim();
     if (msg.isEmpty || _token == null) return;
@@ -168,6 +250,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _msgCtrl.clear();
     setState(() {
       _replyingTo = null;
+      // Setelah user kirim pesan, sembunyikan divider
       _unreadDividerVisible = false;
     });
     try {
@@ -196,7 +279,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ── API: Delete ───────────────────────────────────────────────────────────
+  // ─── API: Delete ──────────────────────────────────────────────────────────
   Future<void> _deleteMessage(int id) async {
     try {
       final res = await http.delete(
@@ -217,7 +300,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ── API: Edit ─────────────────────────────────────────────────────────────
+  // ─── API: Edit ────────────────────────────────────────────────────────────
   Future<void> _editMessage(int id, String text) async {
     if (text.isEmpty) return;
     try {
@@ -233,14 +316,15 @@ class _ChatScreenState extends State<ChatScreen> {
       if (res.statusCode == 200) {
         _fetchChats();
         _snack('Pesan diperbarui');
-      } else
+      } else {
         _snack('Gagal edit pesan', err: true);
+      }
     } catch (e) {
       _snack('Error: $e', err: true);
     }
   }
 
-  // ── API: Pin / Unpin ──────────────────────────────────────────────────────
+  // ─── API: Pin / Unpin ─────────────────────────────────────────────────────
   Future<void> _pinMessage(int id, bool pin) async {
     try {
       final res = await http.post(
@@ -253,14 +337,15 @@ class _ChatScreenState extends State<ChatScreen> {
       if (res.statusCode == 200) {
         _fetchChats();
         _snack(pin ? 'Pesan dipin' : 'Pin dihapus');
-      } else
+      } else {
         _snack('Gagal', err: true);
+      }
     } catch (e) {
       _snack('Error: $e', err: true);
     }
   }
 
-  // ── API: Seen By ──────────────────────────────────────────────────────────
+  // ─── API: Seen By ─────────────────────────────────────────────────────────
   Future<void> _showSeenBy(int id) async {
     try {
       final res = await http.get(
@@ -282,16 +367,16 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ── API: Mark Seen ────────────────────────────────────────────────────────
+  // ─── API: Mark Seen ───────────────────────────────────────────────────────
   Future<void> _markSeen(int id) async {
     if (_seenIds.contains(id)) return;
     _seenIds.add(id);
-    if (_unreadDividerVisible && _lastSeenId != null) {
-      final msgIdx = _messages.indexWhere((m) => m.id == id);
-      final lastIdx = _messages.indexWhere((m) => m.id == _lastSeenId);
-      if (msgIdx > lastIdx && mounted)
-        setState(() => _unreadDividerVisible = false);
+
+    // Jika user sudah scroll melewati divider, sembunyikan
+    if (_unreadDividerVisible && mounted) {
+      setState(() => _unreadDividerVisible = false);
     }
+
     try {
       await http.post(
         Uri.parse('${Api.baseUrl}/api/chats/$id/seen'),
@@ -305,22 +390,26 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ── Scroll Helpers ────────────────────────────────────────────────────────
+  // ─── Scroll helpers ───────────────────────────────────────────────────────
+
+  /// Saat pertama buka: scroll ke divider "Pesan baru".
+  /// Kalau tidak ada yang belum dibaca → scroll ke paling bawah.
   void _scrollToFirstUnread() {
     if (!_scrollCtrl.hasClients) return;
-    if (!_unreadDividerVisible || _lastSeenId == null) {
+
+    if (!_unreadDividerVisible || _unreadDividerIndex < 0) {
       _scrollToBottom(animate: false);
       return;
     }
-    final lastIdx = _messages.indexWhere((m) => m.id == _lastSeenId);
-    if (lastIdx < 0 || lastIdx >= _messages.length - 1) {
-      _scrollToBottom(animate: false);
-      return;
-    }
-    final estimatedOffset = ((lastIdx + 1) * 72.0).clamp(
+
+    // Estimasi tinggi rata-rata per item (termasuk date separator)
+    // Date separator ~36px, pesan teks ~72px, media ~220px
+    // Kita pakai estimasi konservatif 80px per item
+    final estimatedOffset = (_unreadDividerIndex * 80.0).clamp(
       0.0,
       _scrollCtrl.position.maxScrollExtent,
     );
+
     _scrollCtrl.jumpTo(estimatedOffset);
   }
 
@@ -340,8 +429,11 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  /// Scroll / jump ke pesan tertentu berdasarkan ID (untuk reply & pinned).
   void _jumpTo(int msgId) {
-    final idx = _messages.indexWhere((m) => m.id == msgId);
+    final idx = _listItems.indexWhere(
+      (item) => item is _ItemMessage && item.msg.id == msgId,
+    );
     if (idx == -1) return;
     _scrollCtrl.animateTo(
       (idx * 80.0).clamp(0.0, _scrollCtrl.position.maxScrollExtent),
@@ -350,7 +442,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // ── Media Upload ──────────────────────────────────────────────────────────
+  // ─── Media Upload ─────────────────────────────────────────────────────────
   Future<void> _pickMedia(String type) async {
     if (type == 'image') {
       final f = await _picker.pickImage(
@@ -426,7 +518,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ── Context Menu ──────────────────────────────────────────────────────────
+  // ─── Context Menu ─────────────────────────────────────────────────────────
   void _showContextMenu(ChatMessage chat) {
     final isMe = chat.userId == _myId;
     final isPinned = chat.isPinned;
@@ -574,7 +666,7 @@ class _ChatScreenState extends State<ChatScreen> {
     onTap: onTap,
   );
 
-  // ── Bottom Sheet Helpers ──────────────────────────────────────────────────
+  // ─── Bottom sheet helpers ─────────────────────────────────────────────────
   void _showPinnedSheet() => showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -659,34 +751,26 @@ class _ChatScreenState extends State<ChatScreen> {
     ),
   );
 
-  // ── List helpers ──────────────────────────────────────────────────────────
-  int _itemCount() {
-    if (_unreadDividerVisible && _lastSeenId != null) {
-      final lastIdx = _messages.indexWhere((m) => m.id == _lastSeenId);
-      if (lastIdx >= 0 && lastIdx < _messages.length - 1)
-        return _messages.length + 1;
-    }
-    return _messages.length;
-  }
-
+  // ─── Build item ───────────────────────────────────────────────────────────
   Widget _buildListItem(int i) {
-    if (_unreadDividerVisible && _lastSeenId != null) {
-      final lastIdx = _messages.indexWhere((m) => m.id == _lastSeenId);
-      if (lastIdx >= 0 && lastIdx < _messages.length - 1) {
-        final dividerIndex = lastIdx + 1;
-        if (i == dividerIndex) return const UnreadDivider();
-        final realIndex = i > dividerIndex ? i - 1 : i;
-        final chat = _messages[realIndex];
-        Future.microtask(() => _markSeen(chat.id));
-        return _buildMessageItem(chat);
-      }
-    }
-    final chat = _messages[i];
-    Future.microtask(() => _markSeen(chat.id));
-    return _buildMessageItem(chat);
-  }
+    final item = _listItems[i];
 
-  Widget _buildMessageItem(ChatMessage chat) {
+    if (item is _ItemDate) {
+      return DateSeparator(date: item.date);
+    }
+
+    if (item is _ItemUnread) {
+      // Hanya tampilkan jika flag masih aktif
+      return _unreadDividerVisible
+          ? const UnreadDivider()
+          : const SizedBox.shrink();
+    }
+
+    // _ItemMessage
+    final chat = (item as _ItemMessage).msg;
+    // Mark seen saat item di-render (sudah masuk viewport)
+    Future.microtask(() => _markSeen(chat.id));
+
     final isMe = chat.userId == _myId;
     return GestureDetector(
       onLongPress: () => _showContextMenu(chat),
@@ -700,7 +784,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
+  // ─── Build ────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: const Color(0xFFF0F4FF),
@@ -762,7 +846,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       horizontal: 10,
                       vertical: 10,
                     ),
-                    itemCount: _itemCount(),
+                    itemCount: _listItems.length,
                     itemBuilder: (_, i) => _buildListItem(i),
                   ),
                 ),
