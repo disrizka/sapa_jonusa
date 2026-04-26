@@ -1,14 +1,11 @@
-// widgets/file_bubble.dart
-
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:open_filex/open_filex.dart'; // tambah: open_filex: ^4.5.0
+import 'package:open_filex/open_filex.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import '../utils/file_utils.dart';
 
-// ─── File Bubble (PDF, DOC, XLS, dll) ────────────────────────────────────────
 class FileBubble extends StatefulWidget {
   final String filePath;
   final String fileUrl;
@@ -28,17 +25,13 @@ class FileBubble extends StatefulWidget {
 }
 
 class _FileBubbleState extends State<FileBubble> {
-  bool _isBusy = false; // dipakai untuk open & download
+  bool _isBusy = false;
   bool _isDownloaded = false;
   String? _localPath;
-
   FileKind get _kind => detectFileKind(widget.filePath);
 
-  /// Download file ke temp dir lalu buka dengan app eksternal
   Future<void> _openFile() async {
     if (_isBusy) return;
-
-    // Kalau sudah ada di lokal, langsung buka
     if (_localPath != null) {
       await OpenFilex.open(_localPath!);
       return;
@@ -78,7 +71,6 @@ class _FileBubbleState extends State<FileBubble> {
     }
   }
 
-  /// Download ke Documents folder (permanent)
   Future<void> _downloadFile() async {
     if (_isBusy) return;
     setState(() => _isBusy = true);
@@ -150,7 +142,6 @@ class _FileBubbleState extends State<FileBubble> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── File info row ──
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -193,10 +184,8 @@ class _FileBubbleState extends State<FileBubble> {
             ],
           ),
           const SizedBox(height: 10),
-          // ── Action buttons ──
           Row(
             children: [
-              // Tombol BUKA
               Expanded(
                 child: GestureDetector(
                   onTap: _isBusy ? null : _openFile,
@@ -241,7 +230,6 @@ class _FileBubbleState extends State<FileBubble> {
                 ),
               ),
               const SizedBox(width: 8),
-              // Tombol DOWNLOAD
               GestureDetector(
                 onTap: _isBusy ? null : _downloadFile,
                 child: Container(
@@ -268,7 +256,6 @@ class _FileBubbleState extends State<FileBubble> {
   }
 }
 
-// ─── Audio Bubble ─────────────────────────────────────────────────────────────
 class AudioBubble extends StatefulWidget {
   final String fileUrl;
   final String? token;
@@ -445,7 +432,6 @@ class _AudioBubbleState extends State<AudioBubble> {
             ],
           ),
           const SizedBox(width: 10),
-          // Play button
           GestureDetector(
             onTap: _play,
             child: Container(
@@ -471,7 +457,6 @@ class _AudioBubbleState extends State<AudioBubble> {
             ),
           ),
           const SizedBox(width: 6),
-          // Download button
           GestureDetector(
             onTap: _download,
             child: Container(

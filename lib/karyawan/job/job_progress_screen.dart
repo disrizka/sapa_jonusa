@@ -41,7 +41,6 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
   String _currentUserId = '';
   String _currentUserName = '';
 
-  // ── Timer fields ────────────────────────────────────────────────────────
   Timer? _timer;
   Duration _elapsed = Duration.zero;
   DateTime? _acceptedAt;
@@ -66,9 +65,7 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
   }
 
   void _initTimer() {
-    // Mulai timer jika job sedang process
     if (_job.isProcess || _job.isCompleted) {
-      // accepted_at dari API — fallback ke created_at jika null
       final acceptedStr = _job.acceptedAt ?? _job.createdAt;
       if (acceptedStr != null) {
         try {
@@ -91,7 +88,6 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
           }
         });
       } else {
-        // Completed — hitung total waktu pengerjaan
         if (_acceptedAt != null && _job.completedAt != null) {
           try {
             final completedAt = DateTime.parse(_job.completedAt!);
@@ -132,8 +128,6 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
   }
 
   String _formatElapsed() => _formatDuration(_elapsed);
-
-  // ── Load user ────────────────────────────────────────────────────────────
   Future<void> _loadCurrentUser() async {
     try {
       final allData = await _storage.readAll();
@@ -181,7 +175,18 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
     return false;
   }
 
-  // ── Submit komentar ──────────────────────────────────────────────────────
+  int get _completedSteps => _job.isCompleted ? 4 : _job.trackers.length;
+  int get _currentStepInput => _job.currentStep ?? (_completedSteps + 1);
+  List<JobTracker> get _uniqueTrackers {
+    final Map<int, JobTracker> seen = {};
+    for (final t in _job.trackers) {
+      seen.putIfAbsent(t.stepNumber, () => t);
+    }
+    return seen.values.toList()
+      ..sort((a, b) => a.stepNumber.compareTo(b.stepNumber));
+  }
+
+  // Submit komentar
   Future<void> _submitComment() async {
     final text = _commentCtrl.text.trim();
     if (text.isEmpty || _sendingComment) return;
@@ -244,31 +249,69 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
     }
   }
 
-  // ── Submit progress ──────────────────────────────────────────────────────
+  // step_requirements
   Future<void> _submit() async {
     if (_uploading) return;
-    final desc = _descCtrl.text.trim();
-    if (desc.isEmpty) {
+
+    if (_job.isCompleted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Isi deskripsi dulu!'),
-          backgroundColor: _kRed,
+          content: Text('Tugas ini sudah selesai.'),
+          backgroundColor: _kGreen,
         ),
       );
       return;
     }
-    if (_photo == null) {
+
+    if (_job.currentStep == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Mohon tambahkan bukti foto!'),
+          content: Text('Tidak ada tahap yang perlu diinput saat ini.'),
+          backgroundColor: _kSub,
+        ),
+      );
+      return;
+    }
+
+    final int step = _currentStepInput;
+
+    final req = _job.requirementForStep(step);
+    final bool reqDesc = req?.reqDesc ?? false;
+    final bool reqPhoto = req?.reqPhoto ?? false;
+    final bool reqVideo = req?.reqVideo ?? false;
+    final String stepName = req?.stepName ?? 'Tahap $step';
+
+    if (reqDesc && _descCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Deskripsi wajib diisi untuk $stepName'),
           backgroundColor: _kRed,
         ),
       );
       return;
     }
 
-    // Step terakhir — minta alasan sebelum selesai
-    final isLastStep = (_job.currentStep ?? 1) >= 4;
+    if (reqPhoto && _photo == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Foto bukti wajib dilampirkan untuk $stepName'),
+          backgroundColor: _kRed,
+        ),
+      );
+      return;
+    }
+
+    if (reqVideo && _video == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Video bukti wajib dilampirkan untuk $stepName'),
+          backgroundColor: _kRed,
+        ),
+      );
+      return;
+    }
+
+    final isLastStep = step >= 4;
     if (isLastStep) {
       final shouldProceed = await _showCompletionReasonDialog();
       if (!shouldProceed) return;
@@ -278,7 +321,7 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
     try {
       final result = await JobService.updateProgress(
         jobId: _job.id,
-        description: desc,
+        description: _descCtrl.text.trim(),
         photoFile: _photo,
         videoFile: _video,
         completionReason: isLastStep ? _reasonCtrl.text.trim() : null,
@@ -293,12 +336,41 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
         _video = null;
       });
       _initTimer();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isLastStep ? 'Tugas selesai! 🎉' : '$stepName berhasil disimpan',
+            ),
+            backgroundColor: _kGreen,
+          ),
+        );
+      }
+
       if (_job.isCompleted) Navigator.pop(context, true);
     } catch (e) {
       setState(() => _uploading = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Gagal: $e')));
+      final errStr = e.toString().toLowerCase();
+      if (errStr.contains('sudah selesai') ||
+          errStr.contains('already completed')) {
+        await _refreshJob();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Tugas telah selesai, memuat ulang data...'),
+              backgroundColor: _kGreen,
+            ),
+          );
+          if (_job.isCompleted) Navigator.pop(context, true);
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Gagal: $e'), backgroundColor: _kRed),
+          );
+        }
+      }
     }
   }
 
@@ -339,7 +411,6 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Status waktu
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
@@ -445,7 +516,7 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
     return result == true;
   }
 
-  // ── Picker ───────────────────────────────────────────────────────────────
+  // Picker
   Future<void> _pickPhoto() async {
     final src = await showModalBottomSheet<ImageSource>(
       context: context,
@@ -504,9 +575,7 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
     if (picked != null) setState(() => _video = File(picked.path));
   }
 
-  // ════════════════════════════════════════════════════════════════════════
   //  BUILD
-  // ════════════════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
     if (_isLoadingUser) {
@@ -544,26 +613,20 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Banner pemantau
               if (!_isMyJob && !isCompleted) _buildViewerBanner(),
               if (!_isMyJob && !isCompleted) const SizedBox(height: 12),
-
-              // ── TIMER CARD (process) ────────────────────────────────────
               if (_job.isProcess || isCompleted) ...[
                 _buildTimerCard(isCompleted),
                 const SizedBox(height: 16),
               ],
 
-              // Header
               _buildHeaderCard(isCompleted),
               const SizedBox(height: 24),
 
-              // Info Klien & Lokasi
               if (_job.clientName != null || _job.location != null) ...[
                 _buildClientLocationCard(),
                 const SizedBox(height: 24),
               ],
-
               // Riwayat Pengerjaan
               const Text(
                 'Riwayat Pengerjaan',
@@ -574,18 +637,21 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              if (_job.trackers.isEmpty)
+              if (_uniqueTrackers.isEmpty)
                 _buildEmptyState(
                   icon: Icons.pending_actions_outlined,
                   message: 'Belum ada progress pengerjaan.',
                 )
               else
-                ..._job.trackers.map((t) => _buildTrackerTile(t)),
+                ..._uniqueTrackers.map((t) => _buildTrackerTile(t)),
+              if (isCompleted) ...[
+                const SizedBox(height: 8),
+                _buildTrackersCompletionSummary(),
+              ],
 
               const SizedBox(height: 24),
 
-              // Form input progress
-              if (!isCompleted && _isMyJob) ...[
+              if (!isCompleted && _isMyJob && _job.currentStep != null) ...[
                 const Text(
                   'Input Progress Tahap Berikutnya',
                   style: TextStyle(
@@ -598,7 +664,6 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
                 _buildProgressForm(),
               ],
 
-              // Hasil akhir (completed)
               if (isCompleted && _job.completionReason != null) ...[
                 const SizedBox(height: 8),
                 _buildCompletionReport(),
@@ -625,7 +690,7 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
     );
   }
 
-  // ── TIMER CARD ────────────────────────────────────────────────────────────
+  // TIMER CARD
   Widget _buildTimerCard(bool isCompleted) {
     final timerColor = _isOverdue ? _kRed : _kGreen;
     final bgColor = _isOverdue
@@ -673,7 +738,6 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
             ],
           ),
           const SizedBox(height: 10),
-          // Big timer
           Text(
             _formatElapsedClock(),
             style: TextStyle(
@@ -784,7 +848,7 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
     return '$h:$m:$s';
   }
 
-  // ── Client & Location Card ────────────────────────────────────────────────
+  // Client & Location Card
   Widget _buildClientLocationCard() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -881,7 +945,83 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
     );
   }
 
-  // ── Completion Report ─────────────────────────────────────────────────────
+  // ── Trackers Completion Summary (FIX: actual_duration safe cast) ──────────
+  Widget _buildTrackersCompletionSummary() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _job.isOverdue ? Colors.orange.shade50 : Colors.green.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _job.isOverdue
+              ? Colors.orange.shade300
+              : Colors.green.shade300,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                _job.isOverdue ? Icons.warning_amber : Icons.check_circle,
+                color: _job.isOverdue
+                    ? Colors.orange.shade700
+                    : Colors.green.shade700,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _job.isOverdue
+                    ? 'Tugas Selesai — Melebihi Estimasi'
+                    : 'Tugas Selesai ✓',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  color: _job.isOverdue
+                      ? Colors.orange.shade800
+                      : Colors.green.shade800,
+                ),
+              ),
+            ],
+          ),
+          if (_job.actualDuration != null) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(Icons.timer, size: 14, color: Colors.grey.shade600),
+                const SizedBox(width: 4),
+                Text(
+                  'Durasi aktual: ${_job.actualDurationLabel}',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                ),
+              ],
+            ),
+          ],
+          if (_job.completionReason != null &&
+              _job.completionReason!.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.notes, size: 14, color: Colors.grey.shade600),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    _job.completionReason!,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // Completion Report
   Widget _buildCompletionReport() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -977,7 +1117,7 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
     );
   }
 
-  // ── Viewer Banner ────────────────────────────────────────────────────────
+  // Viewer Banner
   Widget _buildViewerBanner() {
     return Container(
       width: double.infinity,
@@ -1009,10 +1149,8 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
   }
 
   Widget _buildHeaderCard(bool isCompleted) {
-    final int completedSteps = isCompleted ? 4 : ((_job.currentStep ?? 1) - 1);
-    final double progressVal = isCompleted
-        ? 1.0
-        : ((_job.currentStep ?? 1) - 1) / 4.0;
+    final int completed = _completedSteps;
+    final double progressVal = isCompleted ? 1.0 : completed / 4.0;
 
     return Container(
       width: double.infinity,
@@ -1083,7 +1221,9 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Tahap $completedSteps dari 4',
+                  completed == 0
+                      ? 'Belum ada tahap selesai'
+                      : 'Tahap $completed dari 4 selesai',
                   style: const TextStyle(
                     fontSize: 12,
                     color: _kPrimary,
@@ -1113,8 +1253,8 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
             const SizedBox(height: 10),
             Row(
               children: List.generate(4, (i) {
-                final done = i < completedSteps;
-                final active = !isCompleted && i == completedSteps;
+                final done = i < completed;
+                final active = !isCompleted && i == completed;
                 return Expanded(
                   child: Column(
                     children: [
@@ -1163,7 +1303,7 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
                             Expanded(
                               child: Container(
                                 height: 2,
-                                color: done && i < completedSteps - 1
+                                color: done && i < completed - 1
                                     ? _kGreen
                                     : Colors.grey.shade200,
                               ),
@@ -1171,10 +1311,12 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
                         ],
                       ),
                       const SizedBox(height: 4),
+                      // FIX: tampilkan stepName dari step_requirements jika tersedia
                       Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
-                          'Tahap ${i + 1}',
+                          _job.requirementForStep(i + 1)?.stepName ??
+                              'Tahap ${i + 1}',
                           style: TextStyle(
                             fontSize: 9,
                             color: done
@@ -1186,6 +1328,7 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
                                 ? FontWeight.bold
                                 : FontWeight.normal,
                           ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
@@ -1245,6 +1388,9 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
   }
 
   Widget _buildTrackerTile(JobTracker t) {
+    final req = _job.requirementForStep(t.stepNumber);
+    final String stepName = req?.stepName ?? 'Tahap ${t.stepNumber}';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -1268,14 +1414,37 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
             ),
           ),
           title: Text(
-            'Tahap ${t.stepNumber}: ${t.descriptionValue ?? "Selesai"}',
+            '$stepName: ${t.descriptionValue ?? "Selesai"}',
             style: const TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 14,
               color: _kText,
             ),
           ),
-          trailing: const Icon(Icons.check_circle, color: _kGreen, size: 20),
+          subtitle: t.createdAt != null
+              ? Text(
+                  t.createdAt!,
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                )
+              : null,
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (t.photoUrl != null)
+                const Icon(Icons.photo, size: 16, color: Colors.blue),
+              if (t.videoUrl != null)
+                const Padding(
+                  padding: EdgeInsets.only(left: 4),
+                  child: Icon(
+                    Icons.videocam,
+                    size: 16,
+                    color: Colors.deepPurple,
+                  ),
+                ),
+              const SizedBox(width: 6),
+              Icon(Icons.check_circle, color: _kGreen, size: 20),
+            ],
+          ),
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -1360,9 +1529,15 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
   }
 
   Widget _buildProgressForm() {
-    final int currentStep = _job.currentStep ?? 1;
-    final int nextStep = currentStep + 1;
-    final isLast = currentStep >= 4;
+    final int inputStep = _currentStepInput;
+    final int nextStep = inputStep + 1;
+    final isLast = inputStep >= 4;
+
+    final req = _job.requirementForStep(inputStep);
+    final bool reqDesc = req?.reqDesc ?? false;
+    final bool reqPhoto = req?.reqPhoto ?? false;
+    final bool reqVideo = req?.reqVideo ?? false;
+    final String stepName = req?.stepName ?? 'Tahap $inputStep';
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1374,21 +1549,64 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'INPUT PROGRESS TAHAP $currentStep',
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              color: _kPrimary,
-              fontSize: 13,
-            ),
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: _kPrimary,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Center(
+                  child: Text(
+                    '$inputStep',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'INPUT PROGRESS TAHAP $inputStep',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: _kPrimary,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    Text(
+                      stepName,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: _kText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           TextField(
             controller: _descCtrl,
             maxLines: 3,
             decoration: InputDecoration(
-              labelText: 'Deskripsi Tahap $currentStep',
-              hintText: 'Apa hasil pekerjaan di tahap ini?',
+              labelText: reqDesc
+                  ? 'Deskripsi $stepName *'
+                  : 'Deskripsi (opsional)',
+              hintText: reqDesc
+                  ? 'Jelaskan pekerjaan di tahap ini...'
+                  : 'Tambahkan catatan jika perlu...',
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -1397,53 +1615,101 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
             ),
           ),
           const SizedBox(height: 16),
+
           Row(
             children: [
               Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _pickPhoto,
-                  icon: const Icon(Icons.camera_alt),
-                  label: Text(_photo == null ? 'Foto' : '✓ Foto'),
+                child: _buildMediaButton(
+                  icon: Icons.camera_alt,
+                  label: reqPhoto
+                      ? (_photo != null ? '✓ Foto' : 'Foto *')
+                      : (_photo != null ? '✓ Foto' : 'Foto'),
+                  isSelected: _photo != null,
+                  isRequired: reqPhoto,
+                  onTap: _pickPhoto,
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _pickVideo,
-                  icon: const Icon(Icons.videocam),
-                  label: Text(_video == null ? 'Video' : '✓ Video'),
+                child: _buildMediaButton(
+                  icon: Icons.videocam,
+                  label: reqVideo
+                      ? (_video != null ? '✓ Video' : 'Video *')
+                      : (_video != null ? '✓ Video' : 'Video'),
+                  isSelected: _video != null,
+                  isRequired: reqVideo,
+                  onTap: _pickVideo,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          // Info overdue warning sebelum step terakhir
-          if (isLast && _isOverdue)
+
+          if (reqPhoto || reqVideo) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                if (reqPhoto) ...[
+                  Icon(
+                    _photo != null ? Icons.check_circle : Icons.error_outline,
+                    size: 14,
+                    color: _photo != null ? _kGreen : _kRed,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _photo != null ? 'Foto terpilih' : 'Foto wajib',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: _photo != null ? _kGreen : _kRed,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+                if (reqVideo) ...[
+                  Icon(
+                    _video != null ? Icons.check_circle : Icons.error_outline,
+                    size: 14,
+                    color: _video != null ? _kGreen : _kRed,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _video != null ? 'Video terpilih' : 'Video wajib',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: _video != null ? _kGreen : _kRed,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+
+          if (isLast && _isOverdue) ...[
+            const SizedBox(height: 12),
             Container(
-              margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: _kRed.withOpacity(0.08),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: _kRed.withOpacity(0.3)),
               ),
-              child: Row(
+              child: const Row(
                 children: [
-                  const Icon(
-                    Icons.warning_amber_rounded,
-                    color: _kRed,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 8),
+                  Icon(Icons.warning_amber_rounded, color: _kRed, size: 16),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Tugas sudah melebihi estimasi waktu. Nanti kamu akan diminta mengisi alasan.',
-                      style: const TextStyle(fontSize: 11, color: _kRed),
+                      style: TextStyle(fontSize: 11, color: _kRed),
                     ),
                   ),
                 ],
               ),
             ),
+          ],
+
+          const SizedBox(height: 16),
+
+          // Submit button
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -1452,17 +1718,88 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
                 backgroundColor: isLast ? _kGreen : _kPrimary,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
               ),
               child: _uploading
-                  ? const CircularProgressIndicator(color: Colors.white)
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
                   : Text(
                       isLast
                           ? 'Selesaikan Tugas ✓'
                           : 'Simpan & Lanjut Tahap $nextStep →',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMediaButton({
+    required IconData icon,
+    required String label,
+    required bool isSelected,
+    required bool isRequired,
+    required VoidCallback onTap,
+  }) {
+    Color bgColor;
+    Color borderColor;
+    Color iconColor;
+
+    if (isSelected) {
+      bgColor = _kGreen.withOpacity(0.08);
+      borderColor = _kGreen.withOpacity(0.5);
+      iconColor = _kGreen;
+    } else if (isRequired) {
+      bgColor = _kRed.withOpacity(0.06);
+      borderColor = _kRed.withOpacity(0.4);
+      iconColor = _kRed;
+    } else {
+      bgColor = _kPrimary.withOpacity(0.05);
+      borderColor = _kPrimary.withOpacity(0.2);
+      iconColor = _kPrimary;
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: borderColor, width: 1.5),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 18, color: iconColor),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: iconColor,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

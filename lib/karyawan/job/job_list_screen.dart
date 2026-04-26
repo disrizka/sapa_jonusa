@@ -88,28 +88,25 @@ class _JobListScreenState extends State<JobListScreen>
   Future<void> _accept(Job job) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder:
-          (_) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            title: const Text(
-              'Terima Tugas',
-              style: TextStyle(fontWeight: FontWeight.w800),
-            ),
-            content: Text('Ambil tugas "${job.title}"?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Batal', style: TextStyle(color: _kSub)),
-              ),
-              FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: _kPrimary),
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Ambil'),
-              ),
-            ],
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Terima Tugas',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        content: Text('Ambil tugas "${job.title}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal', style: TextStyle(color: _kSub)),
           ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: _kPrimary),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Ambil'),
+          ),
+        ],
+      ),
     );
     if (ok != true) return;
     try {
@@ -140,12 +137,17 @@ class _JobListScreenState extends State<JobListScreen>
     _load();
   }
 
-  // ── Label & warna tahap ──────────────────────────────────────────────────
+  int _completedStepsOf(Job job) {
+    if (job.isCompleted) return 4;
+    return job.trackers.length;
+  }
+
   String _stepLabel(Job job) {
     if (job.isCompleted) return 'Selesai';
     if (job.isPending) return 'Menunggu';
-    final step = job.currentStep ?? 1;
-    return 'Tahap $step dari 4';
+    final done = _completedStepsOf(job);
+    if (done == 0) return 'Belum mulai';
+    return 'Tahap $done dari 4 selesai';
   }
 
   Color _stepColor(Job job) {
@@ -157,15 +159,46 @@ class _JobListScreenState extends State<JobListScreen>
   double _progressValue(Job job) {
     if (job.isCompleted) return 1.0;
     if (job.isPending) return 0.0;
-    final step = job.currentStep ?? 1;
-    return (step - 1) / 4.0;
+    return _completedStepsOf(job) / 4.0;
   }
 
-  // ── Widget progress bar + step dots ─────────────────────────────────────
+  String? _formatJobDuration(Job job) {
+    if (!job.isCompleted) return null;
+    try {
+      final start = job.acceptedAt ?? job.createdAt;
+      final end = job.completedAt;
+      if (start == null || end == null) return null;
+      final startDt = DateTime.parse(start);
+      final endDt = DateTime.parse(end);
+      final d = endDt.difference(startDt);
+      if (d.isNegative) return null;
+      final h = d.inHours;
+      final m = d.inMinutes % 60;
+      if (h > 0 && m > 0) return '${h}j ${m}m';
+      if (h > 0) return '${h}j';
+      if (m > 0) return '${m}m';
+      return '< 1 menit';
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool _wasOverdue(Job job) {
+    if (!job.isCompleted) return false;
+    try {
+      if (job.endTime == null || job.completedAt == null) return false;
+      final deadline = DateTime.parse(job.endTime!);
+      final completed = DateTime.parse(job.completedAt!);
+      return completed.isAfter(deadline);
+    } catch (_) {
+      return false;
+    }
+  }
+
   Widget _buildProgressSection(Job job) {
     final color = _stepColor(job);
     final progress = _progressValue(job);
-    final completedSteps = job.isCompleted ? 4 : ((job.currentStep ?? 1) - 1);
+    final completedSteps = _completedStepsOf(job);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -193,7 +226,6 @@ class _JobListScreenState extends State<JobListScreen>
           ],
         ),
         const SizedBox(height: 6),
-        // Progress bar
         ClipRRect(
           borderRadius: BorderRadius.circular(6),
           child: LinearProgressIndicator(
@@ -204,7 +236,6 @@ class _JobListScreenState extends State<JobListScreen>
           ),
         ),
         const SizedBox(height: 8),
-        // Step dots
         Row(
           children: List.generate(4, (i) {
             final done = i < completedSteps;
@@ -218,46 +249,39 @@ class _JobListScreenState extends State<JobListScreen>
                     width: 16,
                     height: 16,
                     decoration: BoxDecoration(
-                      color:
-                          done
-                              ? color
-                              : active
-                              ? color.withOpacity(0.4)
-                              : Colors.grey.shade200,
+                      color: done
+                          ? color
+                          : active
+                          ? color.withOpacity(0.4)
+                          : Colors.grey.shade200,
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: done || active ? color : Colors.grey.shade300,
                         width: 1.5,
                       ),
                     ),
-                    child:
-                        done
-                            ? const Icon(
-                              Icons.check,
-                              size: 10,
-                              color: Colors.white,
-                            )
-                            : active
-                            ? Center(
-                              child: Container(
-                                width: 6,
-                                height: 6,
-                                decoration: BoxDecoration(
-                                  color: color,
-                                  shape: BoxShape.circle,
-                                ),
+                    child: done
+                        ? const Icon(Icons.check, size: 10, color: Colors.white)
+                        : active
+                        ? Center(
+                            child: Container(
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: color,
+                                shape: BoxShape.circle,
                               ),
-                            )
-                            : null,
+                            ),
+                          )
+                        : null,
                   ),
                   if (i < 3)
                     Expanded(
                       child: Container(
                         height: 2,
-                        color:
-                            i < completedSteps - 1
-                                ? color
-                                : Colors.grey.shade200,
+                        color: i < completedSteps - 1
+                            ? color
+                            : Colors.grey.shade200,
                       ),
                     ),
                 ],
@@ -291,7 +315,6 @@ class _JobListScreenState extends State<JobListScreen>
       return SizedBox(
         width: double.infinity,
         child: ElevatedButton.icon(
-          // Semua orang bisa klik untuk melihat, tapi hanya teknisi yang bisa accept
           onPressed: isMyJob ? () => _accept(job) : () => _openProgress(job),
           icon: Icon(
             isMyJob ? Icons.check_circle_outline : Icons.visibility_outlined,
@@ -299,8 +322,9 @@ class _JobListScreenState extends State<JobListScreen>
           ),
           label: Text(isMyJob ? 'AMBIL TUGAS & MULAI' : 'Lihat Detail'),
           style: ElevatedButton.styleFrom(
-            backgroundColor:
-                isMyJob ? const Color(0xFF1A237E) : Colors.grey.shade100,
+            backgroundColor: isMyJob
+                ? const Color(0xFF1A237E)
+                : Colors.grey.shade100,
             foregroundColor: isMyJob ? Colors.white : Colors.grey.shade700,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
@@ -314,7 +338,6 @@ class _JobListScreenState extends State<JobListScreen>
       return SizedBox(
         width: double.infinity,
         child: ElevatedButton.icon(
-          // Semua orang bisa lihat progress, tapi label berbeda
           onPressed: () => _openProgress(job),
           icon: Icon(
             isMyJob ? Icons.upload_outlined : Icons.visibility_outlined,
@@ -322,12 +345,13 @@ class _JobListScreenState extends State<JobListScreen>
           ),
           label: Text(
             isMyJob
-                ? 'Input Progress Tahap ${job.currentStep}'
+                ? 'Input Progress Tahap ${_completedStepsOf(job) + 1}'
                 : 'Pantau Progress',
           ),
           style: ElevatedButton.styleFrom(
-            backgroundColor:
-                isMyJob ? const Color(0xFF1565C0) : Colors.grey.shade100,
+            backgroundColor: isMyJob
+                ? const Color(0xFF1565C0)
+                : Colors.grey.shade100,
             foregroundColor: isMyJob ? Colors.white : Colors.grey.shade700,
           ),
         ),
@@ -338,21 +362,21 @@ class _JobListScreenState extends State<JobListScreen>
   }
 
   Widget _buildCard(Job job, {bool isHistory = false}) {
-    final statusColor =
-        job.status == 'pending'
-            ? _kAmber
-            : (job.status == 'process' ? _kPrimary : _kGreen);
+    final statusColor = job.status == 'pending'
+        ? _kAmber
+        : (job.status == 'process' ? _kPrimary : _kGreen);
 
-    final statusLabel =
-        job.status == 'pending'
-            ? 'MENUNGGU'
-            : job.status == 'process'
-            ? 'PROSES'
-            : 'SELESAI';
+    final statusLabel = job.status == 'pending'
+        ? 'MENUNGGU'
+        : job.status == 'process'
+        ? 'PROSES'
+        : 'SELESAI';
+
+    final duration = isHistory ? _formatJobDuration(job) : null;
+    final overdue = isHistory ? _wasOverdue(job) : false;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -363,65 +387,139 @@ class _JobListScreenState extends State<JobListScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header: judul + badge status
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  job.title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+          if (isHistory && duration != null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: overdue
+                    ? _kRed.withOpacity(0.06)
+                    : _kGreen.withOpacity(0.06),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(20),
+                ),
+                border: Border(
+                  bottom: BorderSide(
+                    color: overdue
+                        ? _kRed.withOpacity(0.15)
+                        : _kGreen.withOpacity(0.15),
                   ),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  statusLabel,
-                  style: TextStyle(
-                    color: statusColor,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
+              child: Row(
+                children: [
+                  Icon(
+                    overdue ? Icons.warning_amber_rounded : Icons.task_alt,
+                    size: 15,
+                    color: overdue ? _kRed : _kGreen,
                   ),
-                ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Durasi pengerjaan: ',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: overdue ? _kRed : _kGreen,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    duration,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: overdue ? _kRed : _kGreen,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: overdue
+                          ? _kRed.withOpacity(0.1)
+                          : _kGreen.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      overdue ? 'Terlambat' : 'Tepat Waktu',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: overdue ? _kRed : _kGreen,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          // Deskripsi
-          Text(
-            job.description ?? '',
-            style: const TextStyle(color: _kSub, fontSize: 13),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 8),
-          // Info teknisi
-          Row(
-            children: [
-              const Icon(Icons.person, size: 14, color: _kSub),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  'Teknisi: ${job.technician?['name'] ?? '-'}',
-                  style: const TextStyle(fontSize: 12, color: _kText),
+            ),
+
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        job.title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        statusLabel,
+                        style: TextStyle(
+                          color: statusColor,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  job.description ?? '',
+                  style: const TextStyle(color: _kSub, fontSize: 13),
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ],
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(Icons.person, size: 14, color: _kSub),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        'Teknisi: ${job.technician?['name'] ?? '-'}',
+                        style: const TextStyle(fontSize: 12, color: _kText),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _buildProgressSection(job),
+                const SizedBox(height: 14),
+                _buildActionButton(job, isHistory),
+              ],
+            ),
           ),
-          const SizedBox(height: 12),
-          // ── Progress bar & step dots (BARU) ─────────────────────────
-          _buildProgressSection(job),
-          const SizedBox(height: 14),
-          // Tombol aksi
-          _buildActionButton(job, isHistory),
         ],
       ),
     );
@@ -442,33 +540,35 @@ class _JobListScreenState extends State<JobListScreen>
           indicatorColor: Colors.white,
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white70,
-          tabs: const [Tab(text: 'Aktif'), Tab(text: 'Riwayat')],
+          tabs: const [
+            Tab(text: 'Aktif'),
+            Tab(text: 'Riwayat'),
+          ],
         ),
       ),
-      body:
-          _loading
-              ? const Center(child: CircularProgressIndicator())
-              : _error != null
-              ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(_error!, textAlign: TextAlign.center),
-                    const SizedBox(height: 12),
-                    ElevatedButton(
-                      onPressed: _load,
-                      child: const Text('Coba Lagi'),
-                    ),
-                  ],
-                ),
-              )
-              : TabBarView(
-                controller: _tab,
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _buildList(_active, false),
-                  _buildList(_history, true),
+                  Text(_error!, textAlign: TextAlign.center),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: _load,
+                    child: const Text('Coba Lagi'),
+                  ),
                 ],
               ),
+            )
+          : TabBarView(
+              controller: _tab,
+              children: [
+                _buildList(_active, false),
+                _buildList(_history, true),
+              ],
+            ),
     );
   }
 
@@ -481,8 +581,8 @@ class _JobListScreenState extends State<JobListScreen>
       child: ListView.builder(
         padding: const EdgeInsets.only(top: 16),
         itemCount: list.length,
-        itemBuilder:
-            (context, index) => _buildCard(list[index], isHistory: isHistory),
+        itemBuilder: (context, index) =>
+            _buildCard(list[index], isHistory: isHistory),
       ),
     );
   }

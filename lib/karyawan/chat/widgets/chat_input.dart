@@ -1,5 +1,3 @@
-// widgets/chat_input.dart
-
 import 'package:flutter/material.dart';
 
 class ChatInput extends StatelessWidget {
@@ -103,7 +101,6 @@ class _ReplyPreview extends StatelessWidget {
   );
 }
 
-// ─── Attachment Picker Bottom Sheet ──────────────────────────────────────────
 class AttachmentPicker extends StatelessWidget {
   final void Function(String type) onPick;
   const AttachmentPicker({super.key, required this.onPick});

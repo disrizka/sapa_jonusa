@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 @pragma('vm:entry-point')
 Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  // FcmService._showLocalNotification(message);
 }
 
 class FcmService {
@@ -46,15 +45,10 @@ class FcmService {
       _showLocalNotification(message);
     });
 
-    // 5. Ambil & simpan FCM token
     String? token = await _fcm.getToken();
     debugPrint('FCM Token: $token');
-    // TODO: Kirim token ini ke Laravel backend kamu (lihat langkah 5)
-
-    // 6. Token refresh
     _fcm.onTokenRefresh.listen((newToken) {
       debugPrint('FCM Token refreshed: $newToken');
-      // TODO: Update token di backend
     });
   }
 
@@ -65,7 +59,6 @@ class FcmService {
   static void _showLocalNotification(RemoteMessage message) {
     final notification = message.notification;
     final android = message.notification?.android;
-
     if (notification != null) {
       _localNotif.show(
         notification.hashCode,

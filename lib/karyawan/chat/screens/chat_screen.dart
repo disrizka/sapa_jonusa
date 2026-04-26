@@ -54,7 +54,6 @@ class _ChatScreenState extends State<ChatScreen> {
   /// -1 = tidak ada.
   int _unreadDividerIndex = -1;
 
-  // ── State flags ───────────────────────────────────────────────────────────
   Timer? _timer;
   bool _isLoading = true;
   bool _isUploading = false;
@@ -63,7 +62,6 @@ class _ChatScreenState extends State<ChatScreen> {
   int? _myId;
   ChatMessage? _replyingTo;
 
-  // ─── Lifecycle ─────────────────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
@@ -78,7 +76,6 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  // ─── Init ──────────────────────────────────────────────────────────────────
   Future<void> _init() async {
     final token = await _storage.read(key: 'auth_token');
     final uid = await _storage.read(key: 'user_id');
@@ -99,9 +96,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ─── Build list items dengan DateSeparator & UnreadDivider ────────────────
-  /// Mengubah daftar pesan mentah menjadi daftar item siap-render.
-  /// Menyisipkan:
   ///   1. [_ItemDate]   setiap kali tanggal berubah antar pesan
   ///   2. [_ItemUnread] tepat sebelum pesan pertama yang belum dibaca
   List<_ListItem> _buildListItems(
@@ -112,8 +106,6 @@ class _ChatScreenState extends State<ChatScreen> {
     final items = <_ListItem>[];
     DateTime? lastDate;
     bool unreadInserted = false;
-
-    // Cari indeks pesan terakhir yang sudah dilihat
     int lastSeenMsgIndex = -1;
     if (lastSeenId != null) {
       lastSeenMsgIndex = messages.indexWhere((m) => m.id == lastSeenId);
@@ -123,16 +115,10 @@ class _ChatScreenState extends State<ChatScreen> {
       final msg = messages[i];
       final msgDate = DateTime.parse(msg.createdAt).toLocal();
       final msgDay = DateTime(msgDate.year, msgDate.month, msgDate.day);
-
-      // 1. Date separator jika hari berbeda
       if (lastDate == null || msgDay != lastDate) {
         items.add(_ItemDate(msgDay));
         lastDate = msgDay;
       }
-
-      // 2. Unread divider tepat sebelum pesan pertama yang belum dilihat
-      //    Kondisi: showUnread aktif, belum diinsert,
-      //    dan ini adalah pesan SETELAH pesan terakhir yang dilihat.
       if (showUnread &&
           !unreadInserted &&
           lastSeenMsgIndex >= 0 &&
@@ -147,7 +133,6 @@ class _ChatScreenState extends State<ChatScreen> {
     return items;
   }
 
-  // ─── API: Fetch Chats ──────────────────────────────────────────────────────
   Future<void> _fetchChats({bool isInit = false}) async {
     if (_token == null || !mounted) return;
     try {
@@ -170,10 +155,7 @@ class _ChatScreenState extends State<ChatScreen> {
           _scrollCtrl.hasClients &&
           _scrollCtrl.position.pixels >=
               _scrollCtrl.position.maxScrollExtent - 80;
-
-      // ── Inisialisasi saat pertama buka ──────────────────────────────────
       if (isInit && _myId != null) {
-        // Tandai semua pesan milik sendiri sebagai sudah dilihat
         int? lastSeen;
         for (final m in all) {
           if (m.userId == _myId) {
@@ -182,27 +164,19 @@ class _ChatScreenState extends State<ChatScreen> {
           }
         }
         _lastSeenIdBeforeOpen = lastSeen;
-
-        // Tampilkan divider hanya jika ada pesan dari orang lain
-        // setelah pesan terakhir milik kita
         if (_lastSeenIdBeforeOpen != null) {
           final lastIdx = all.indexWhere((m) => m.id == _lastSeenIdBeforeOpen);
           _unreadDividerVisible = lastIdx >= 0 && lastIdx < all.length - 1;
         } else {
-          // Tidak punya pesan sama sekali → semua pesan adalah "baru"
-          // Tapi hanya tampilkan divider jika memang ada pesan
           _unreadDividerVisible = all.isNotEmpty;
         }
       }
 
-      // Bangun list items
       final items = _buildListItems(
         all,
         _lastSeenIdBeforeOpen,
         _unreadDividerVisible,
       );
-
-      // Simpan indeks divider "Pesan baru" agar bisa di-scroll ke sana
       _unreadDividerIndex = items.indexWhere((item) => item is _ItemUnread);
 
       setState(() {
@@ -225,7 +199,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ─── API: Members ─────────────────────────────────────────────────────────
   Future<void> _fetchMembers() async {
     if (_token == null || !mounted) return;
     try {
@@ -242,7 +215,6 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (_) {}
   }
 
-  // ─── API: Send Message ────────────────────────────────────────────────────
   Future<void> _sendMessage() async {
     final msg = _msgCtrl.text.trim();
     if (msg.isEmpty || _token == null) return;
@@ -250,7 +222,6 @@ class _ChatScreenState extends State<ChatScreen> {
     _msgCtrl.clear();
     setState(() {
       _replyingTo = null;
-      // Setelah user kirim pesan, sembunyikan divider
       _unreadDividerVisible = false;
     });
     try {
@@ -279,7 +250,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ─── API: Delete ──────────────────────────────────────────────────────────
   Future<void> _deleteMessage(int id) async {
     try {
       final res = await http.delete(
@@ -300,7 +270,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ─── API: Edit ────────────────────────────────────────────────────────────
   Future<void> _editMessage(int id, String text) async {
     if (text.isEmpty) return;
     try {
@@ -324,7 +293,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ─── API: Pin / Unpin ─────────────────────────────────────────────────────
   Future<void> _pinMessage(int id, bool pin) async {
     try {
       final res = await http.post(
@@ -345,7 +313,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ─── API: Seen By ─────────────────────────────────────────────────────────
   Future<void> _showSeenBy(int id) async {
     try {
       final res = await http.get(
@@ -367,12 +334,9 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ─── API: Mark Seen ───────────────────────────────────────────────────────
   Future<void> _markSeen(int id) async {
     if (_seenIds.contains(id)) return;
     _seenIds.add(id);
-
-    // Jika user sudah scroll melewati divider, sembunyikan
     if (_unreadDividerVisible && mounted) {
       setState(() => _unreadDividerVisible = false);
     }
@@ -390,10 +354,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ─── Scroll helpers ───────────────────────────────────────────────────────
-
-  /// Saat pertama buka: scroll ke divider "Pesan baru".
-  /// Kalau tidak ada yang belum dibaca → scroll ke paling bawah.
   void _scrollToFirstUnread() {
     if (!_scrollCtrl.hasClients) return;
 
@@ -401,10 +361,6 @@ class _ChatScreenState extends State<ChatScreen> {
       _scrollToBottom(animate: false);
       return;
     }
-
-    // Estimasi tinggi rata-rata per item (termasuk date separator)
-    // Date separator ~36px, pesan teks ~72px, media ~220px
-    // Kita pakai estimasi konservatif 80px per item
     final estimatedOffset = (_unreadDividerIndex * 80.0).clamp(
       0.0,
       _scrollCtrl.position.maxScrollExtent,
@@ -429,7 +385,6 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  /// Scroll / jump ke pesan tertentu berdasarkan ID (untuk reply & pinned).
   void _jumpTo(int msgId) {
     final idx = _listItems.indexWhere(
       (item) => item is _ItemMessage && item.msg.id == msgId,
@@ -442,7 +397,6 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // ─── Media Upload ─────────────────────────────────────────────────────────
   Future<void> _pickMedia(String type) async {
     if (type == 'image') {
       final f = await _picker.pickImage(
@@ -518,7 +472,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ─── Context Menu ─────────────────────────────────────────────────────────
   void _showContextMenu(ChatMessage chat) {
     final isMe = chat.userId == _myId;
     final isPinned = chat.isPinned;
@@ -666,7 +619,6 @@ class _ChatScreenState extends State<ChatScreen> {
     onTap: onTap,
   );
 
-  // ─── Bottom sheet helpers ─────────────────────────────────────────────────
   void _showPinnedSheet() => showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -750,8 +702,6 @@ class _ChatScreenState extends State<ChatScreen> {
       ],
     ),
   );
-
-  // ─── Build item ───────────────────────────────────────────────────────────
   Widget _buildListItem(int i) {
     final item = _listItems[i];
 
@@ -760,15 +710,12 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     if (item is _ItemUnread) {
-      // Hanya tampilkan jika flag masih aktif
       return _unreadDividerVisible
           ? const UnreadDivider()
           : const SizedBox.shrink();
     }
 
-    // _ItemMessage
     final chat = (item as _ItemMessage).msg;
-    // Mark seen saat item di-render (sudah masuk viewport)
     Future.microtask(() => _markSeen(chat.id));
 
     final isMe = chat.userId == _myId;
@@ -784,7 +731,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // ─── Build ────────────────────────────────────────────────────────────────
+  // Build
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: const Color(0xFFF0F4FF),

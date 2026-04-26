@@ -1,5 +1,3 @@
-// utils/file_utils.dart
-
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:sapa_jonusa/api/api.dart' as Api;
@@ -73,13 +71,9 @@ String fileKindLabel(FileKind kind) {
   }
 }
 
-/// Builds full file URL from relative path stored in DB.
-/// DB stores "uploads/filename.jpg"
-/// URL: http://domain/uploads/filename.jpg
 String buildFileUrl(String filePath) {
   final base = Api.baseUrl.trim().replaceAll(RegExp(r'/$'), '');
   var path = filePath.trim().replaceAll(RegExp(r'^/'), '');
-  // Remove legacy "storage/" prefix if present
   path = path.replaceFirst(RegExp(r'^storage/'), '');
   return '$base/$path';
 }

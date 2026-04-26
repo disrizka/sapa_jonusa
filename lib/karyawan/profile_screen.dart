@@ -6,7 +6,6 @@ import 'package:http/http.dart' as http;
 import 'package:sapa_jonusa/api/api.dart' as Api;
 import 'package:sapa_jonusa/auth/login_screen.dart';
 
-// ─── Color Palette (sama dengan checkin/checkout) ───────────────────────────
 const _kPrimary = Color(0xFF1565C0);
 const _kPrimaryMd = Color(0xFF1976D2);
 const _kPrimaryLt = Color(0xFF42A5F5);
@@ -21,7 +20,6 @@ const _kSub = Color(0xFF8A99B5);
 const _kGreen = Color(0xFF00897B);
 const _kRed = Color(0xFFE53935);
 const _kAmber = Color(0xFFF57C00);
-// ────────────────────────────────────────────────────────────────────────────
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -37,7 +35,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isLoading = true;
   bool _isLoggingOut = false;
 
-  // Controller ganti password
   final _oldPassCtrl = TextEditingController();
   final _newPassCtrl = TextEditingController();
   final _confirmPassCtrl = TextEditingController();
@@ -60,7 +57,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
-  // ── Fetch user dari API ────────────────────────────────────────────────────
   Future<void> _loadUser() async {
     setState(() => _isLoading = true);
     try {
@@ -86,61 +82,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // ── Logout ─────────────────────────────────────────────────────────────────
   Future<void> _handleLogout() async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder:
-          (ctx) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            title: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: _kRed.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.logout_rounded,
-                    color: _kRed,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Text(
-                  'Keluar Akun?',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16,
-                    color: _kText,
-                  ),
-                ),
-              ],
-            ),
-            content: const Text(
-              'Sesi kamu akan diakhiri dan kamu harus login ulang.',
-              style: TextStyle(fontSize: 13, color: _kSub, height: 1.5),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Batal', style: TextStyle(color: _kSub)),
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: _kRed.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
               ),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: _kRed,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Keluar'),
+              child: const Icon(Icons.logout_rounded, color: _kRed, size: 22),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Keluar Akun?',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+                color: _kText,
               ),
-            ],
+            ),
+          ],
+        ),
+        content: const Text(
+          'Sesi kamu akan diakhiri dan kamu harus login ulang.',
+          style: TextStyle(fontSize: 13, color: _kSub, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal', style: TextStyle(color: _kSub)),
           ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: _kRed,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Keluar'),
+          ),
+        ],
+      ),
     );
 
     if (confirm != true) return;
@@ -166,7 +154,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // ── Ganti Password ─────────────────────────────────────────────────────────
   Future<void> _handleChangePassword(StateSetter setDialogState) async {
     if (_oldPassCtrl.text.isEmpty ||
         _newPassCtrl.text.isEmpty ||
@@ -186,14 +173,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setDialogState(() => _isChangingPass = true);
     try {
       final token = await _storage.read(key: 'auth_token');
-
-      // ✅ Gunakan PUT + JSON body, bukan POST + _method spoofing
       final response = await http.put(
         Uri.parse('${Api.baseUrl}/api/user/change-password'),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
-          'Content-Type': 'application/json', // ✅ Wajib untuk JSON
+          'Content-Type': 'application/json',
         },
         body: jsonEncode({
           'current_password': _oldPassCtrl.text,
@@ -229,114 +214,100 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     showDialog(
       context: context,
-      builder:
-          (ctx) => StatefulBuilder(
-            builder:
-                (ctx, setDialogState) => AlertDialog(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  title: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [_kAccent, _kPrimaryMd],
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.lock_reset_rounded,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Text(
-                        'Ganti Password',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16,
-                          color: _kText,
-                        ),
-                      ),
-                    ],
-                  ),
-                  content: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildPassField(
-                          controller: _oldPassCtrl,
-                          label: 'Password Lama',
-                          isObscure: _obscureOld,
-                          onToggle:
-                              () => setDialogState(
-                                () => _obscureOld = !_obscureOld,
-                              ),
-                        ),
-                        const SizedBox(height: 14),
-                        _buildPassField(
-                          controller: _newPassCtrl,
-                          label: 'Password Baru',
-                          isObscure: _obscureNew,
-                          onToggle:
-                              () => setDialogState(
-                                () => _obscureNew = !_obscureNew,
-                              ),
-                        ),
-                        const SizedBox(height: 14),
-                        _buildPassField(
-                          controller: _confirmPassCtrl,
-                          label: 'Konfirmasi Password Baru',
-                          isObscure: _obscureConfirm,
-                          onToggle:
-                              () => setDialogState(
-                                () => _obscureConfirm = !_obscureConfirm,
-                              ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      child: const Text(
-                        'Batal',
-                        style: TextStyle(color: _kSub),
-                      ),
-                    ),
-                    FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _kPrimary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      onPressed:
-                          _isChangingPass
-                              ? null
-                              : () => _handleChangePassword(setDialogState),
-                      child:
-                          _isChangingPass
-                              ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                              : const Text('Simpan'),
-                    ),
-                  ],
-                ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
           ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [_kAccent, _kPrimaryMd],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.lock_reset_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Ganti Password',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  color: _kText,
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildPassField(
+                  controller: _oldPassCtrl,
+                  label: 'Password Lama',
+                  isObscure: _obscureOld,
+                  onToggle: () =>
+                      setDialogState(() => _obscureOld = !_obscureOld),
+                ),
+                const SizedBox(height: 14),
+                _buildPassField(
+                  controller: _newPassCtrl,
+                  label: 'Password Baru',
+                  isObscure: _obscureNew,
+                  onToggle: () =>
+                      setDialogState(() => _obscureNew = !_obscureNew),
+                ),
+                const SizedBox(height: 14),
+                _buildPassField(
+                  controller: _confirmPassCtrl,
+                  label: 'Konfirmasi Password Baru',
+                  isObscure: _obscureConfirm,
+                  onToggle: () =>
+                      setDialogState(() => _obscureConfirm = !_obscureConfirm),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Batal', style: TextStyle(color: _kSub)),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: _kPrimary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              onPressed: _isChangingPass
+                  ? null
+                  : () => _handleChangePassword(setDialogState),
+              child: _isChangingPass
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Text('Simpan'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
   void _showSnackBar(String msg, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -367,7 +338,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return 'U';
   }
 
-  // ─── BUILD ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     SystemChrome.setSystemUIOverlayStyle(
@@ -379,16 +349,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Scaffold(
       backgroundColor: _kBg,
-      body:
-          _isLoading
-              ? _buildLoadingState()
-              : _userData == null
-              ? _buildErrorState()
-              : _buildContent(),
+      body: _isLoading
+          ? _buildLoadingState()
+          : _userData == null
+          ? _buildErrorState()
+          : _buildContent(),
     );
   }
 
-  // ─── Loading ────────────────────────────────────────────────────────────────
   Widget _buildLoadingState() {
     return Container(
       decoration: const BoxDecoration(
@@ -404,7 +372,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ─── Error ──────────────────────────────────────────────────────────────────
   Widget _buildErrorState() {
     return Center(
       child: Column(
@@ -450,7 +417,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ─── Main Content ───────────────────────────────────────────────────────────
   Widget _buildContent() {
     final name = _userData!['name'] ?? _userData!['nama'] ?? 'User';
     final email = _userData!['email'] ?? '-';
@@ -463,7 +429,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       color: _kPrimary,
       child: CustomScrollView(
         slivers: [
-          // ── App Bar dengan Avatar ──────────────────────────────────────────
           SliverAppBar(
             expandedHeight: 260,
             pinned: true,
@@ -491,15 +456,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             centerTitle: true,
           ),
-
-          // ── Body ──────────────────────────────────────────────────────────
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(18, 20, 18, 40),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Info pribadi
                   _buildSectionCard(
                     title: 'Informasi Akun',
                     icon: Icons.person_rounded,
@@ -535,8 +497,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
                   const SizedBox(height: 18),
-
-                  // Menu aksi
                   _buildSectionCard(
                     title: 'Pengaturan',
                     icon: Icons.settings_rounded,
@@ -556,18 +516,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         subtitle: 'Informasi kebijakan privasi',
                         iconColor: Color(0xFF7B1FA2),
                         iconBg: Color(0xFFF3E5F5),
-                        onTap:
-                            () => _showInfoDialog(
-                              title: 'Privasi & Keamanan',
-                              icon: Icons.privacy_tip_outlined,
-                              color: Color(0xFF7B1FA2),
-                              content:
-                                  'Kami berkomitmen menjaga kerahasiaan data kamu.\n\n'
-                                  '• Data absensi hanya dapat diakses oleh kamu dan admin\n'
-                                  '• Foto presensi disimpan dengan aman di server\n'
-                                  '• Token login otomatis dihapus saat logout\n'
-                                  '• Data tidak dibagikan ke pihak ketiga',
-                            ),
+                        onTap: () => _showInfoDialog(
+                          title: 'Privasi & Keamanan',
+                          icon: Icons.privacy_tip_outlined,
+                          color: Color(0xFF7B1FA2),
+                          content:
+                              'Kami berkomitmen menjaga kerahasiaan data kamu.\n\n'
+                              '• Data absensi hanya dapat diakses oleh kamu dan admin\n'
+                              '• Foto presensi disimpan dengan aman di server\n'
+                              '• Token login otomatis dihapus saat logout\n'
+                              '• Data tidak dibagikan ke pihak ketiga',
+                        ),
                       ),
                       _buildDivider(),
                       _buildMenuTile(
@@ -576,24 +535,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         subtitle: 'FAQ dan panduan penggunaan',
                         iconColor: _kGreen,
                         iconBg: Color(0xFFE8F5E9),
-                        onTap:
-                            () => _showInfoDialog(
-                              title: 'Bantuan',
-                              icon: Icons.help_outline_rounded,
-                              color: _kGreen,
-                              content:
-                                  '• Login menggunakan email & password yang diberikan admin\n\n'
-                                  '• Absensi masuk: Ketuk fingerprint → Presensi Masuk\n\n'
-                                  '• Absensi pulang: Ketuk fingerprint → Presensi Pulang\n\n'
-                                  '• Pastikan GPS aktif saat melakukan presensi\n\n'
-                                  '• Pengajuan izin/cuti: Ketuk fingerprint → Izin & Cuti atau Sakit',
-                            ),
+                        onTap: () => _showInfoDialog(
+                          title: 'Bantuan',
+                          icon: Icons.help_outline_rounded,
+                          color: _kGreen,
+                          content:
+                              '• Login menggunakan email & password yang diberikan admin\n\n'
+                              '• Absensi masuk: Ketuk fingerprint → Presensi Masuk\n\n'
+                              '• Absensi pulang: Ketuk fingerprint → Presensi Pulang\n\n'
+                              '• Pastikan GPS aktif saat melakukan presensi\n\n'
+                              '• Pengajuan izin/cuti: Ketuk fingerprint → Izin & Cuti atau Sakit',
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 18),
-
-                  // Info versi
                   _buildSectionCard(
                     title: 'Informasi Aplikasi',
                     icon: Icons.info_outline_rounded,
@@ -614,8 +570,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
                   const SizedBox(height: 28),
-
-                  // Tombol Logout
                   _buildLogoutButton(),
                 ],
               ),
@@ -626,7 +580,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ─── Profile Header ─────────────────────────────────────────────────────────
   Widget _buildProfileHeader(String name, String role, String division) {
     return Container(
       decoration: const BoxDecoration(
@@ -641,7 +594,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const SizedBox(height: 40),
-            // Avatar
             Container(
               width: 90,
               height: 90,
@@ -735,7 +687,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ─── Section Card ───────────────────────────────────────────────────────────
   Widget _buildSectionCard({
     required String title,
     required IconData icon,
@@ -761,7 +712,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header section
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             decoration: BoxDecoration(
@@ -804,7 +754,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ─── Info Row ───────────────────────────────────────────────────────────────
   Widget _buildInfoRow({
     required IconData icon,
     required String label,
@@ -840,32 +789,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 3),
                 isChip
                     ? Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _kGreen.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: _kGreen.withOpacity(0.3)),
-                      ),
-                      child: Text(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _kGreen.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: _kGreen.withOpacity(0.3)),
+                        ),
+                        child: Text(
+                          value,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: _kGreen,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      )
+                    : Text(
                         value,
                         style: const TextStyle(
-                          fontSize: 12,
-                          color: _kGreen,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: _kText,
                         ),
                       ),
-                    )
-                    : Text(
-                      value,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: _kText,
-                      ),
-                    ),
               ],
             ),
           ),
@@ -874,7 +823,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ─── Menu Tile ──────────────────────────────────────────────────────────────
   Widget _buildMenuTile({
     required IconData icon,
     required String label,
@@ -933,7 +881,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ─── Tombol Logout ──────────────────────────────────────────────────────────
   Widget _buildLogoutButton() {
     return SizedBox(
       width: double.infinity,
@@ -963,21 +910,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
               borderRadius: BorderRadius.circular(18),
             ),
           ),
-          icon:
-              _isLoggingOut
-                  ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2.5,
-                    ),
-                  )
-                  : const Icon(
-                    Icons.logout_rounded,
+          icon: _isLoggingOut
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
                     color: Colors.white,
-                    size: 22,
+                    strokeWidth: 2.5,
                   ),
+                )
+              : const Icon(Icons.logout_rounded, color: Colors.white, size: 22),
           label: Text(
             _isLoggingOut ? 'Keluar...' : 'Keluar dari Akun',
             style: const TextStyle(
@@ -992,12 +934,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ─── Divider ────────────────────────────────────────────────────────────────
   Widget _buildDivider() {
     return Divider(color: Colors.grey.shade100, height: 1, thickness: 1);
   }
 
-  // ─── Password Field ─────────────────────────────────────────────────────────
   Widget _buildPassField({
     required TextEditingController controller,
     required String label,
@@ -1044,7 +984,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ─── Info Dialog (Privasi / Bantuan) ────────────────────────────────────────
   void _showInfoDialog({
     required String title,
     required IconData icon,
@@ -1053,49 +992,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }) {
     showDialog(
       context: context,
-      builder:
-          (ctx) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
-            ),
-            title: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(icon, color: color, size: 22),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16,
-                    color: _kText,
-                  ),
-                ),
-              ],
-            ),
-            content: Text(
-              content,
-              style: const TextStyle(fontSize: 13, color: _kSub, height: 1.7),
-            ),
-            actions: [
-              FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: _kPrimary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Mengerti'),
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
               ),
-            ],
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              title,
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+                color: _kText,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          content,
+          style: const TextStyle(fontSize: 13, color: _kSub, height: 1.7),
+        ),
+        actions: [
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: _kPrimary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Mengerti'),
           ),
+        ],
+      ),
     );
   }
 }

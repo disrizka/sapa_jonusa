@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -16,7 +15,6 @@ import 'package:sapa_jonusa/api/api.dart' as Api;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
-// ─── File kind helper ────────────────────────────────────────────────────────
 enum FileKind { image, video, audio, pdf, doc, spreadsheet, other }
 
 FileKind detectFileKind(String? path) {
@@ -52,19 +50,13 @@ IconData fileIcon(FileKind kind) {
 }
 
 final Map<String, Uint8List> _imageCache = {};
-
-// ─── FIX URL: file disimpan di public/uploads ─────────────────────────────────
-// DB menyimpan "uploads/namafile.jpg"
-// URL yang benar: http://domain/uploads/namafile.jpg  (BUKAN /storage/uploads/)
 String buildFileUrl(String filePath) {
   final base = Api.baseUrl.trim().replaceAll(RegExp(r'/$'), '');
   var path = filePath.trim().replaceAll(RegExp(r'^/'), '');
-  // Kalau ada sisa "storage/" di depan dari versi lama, hapus
   path = path.replaceFirst(RegExp(r'^storage/'), '');
   return '$base/$path';
 }
 
-// ─── Fullscreen Image Viewer ─────────────────────────────────────────────────
 class _FullscreenImageViewer extends StatefulWidget {
   final String imageUrl;
   final String? token;
@@ -149,31 +141,29 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
       ],
     ),
     body: Center(
-      child:
-          _loading
-              ? const CircularProgressIndicator(color: Colors.white)
-              : _error || _bytes == null
-              ? Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.broken_image, color: Colors.grey, size: 64),
-                  TextButton(
-                    onPressed: _loadImage,
-                    child: const Text(
-                      'Coba Lagi',
-                      style: TextStyle(color: Colors.white),
-                    ),
+      child: _loading
+          ? const CircularProgressIndicator(color: Colors.white)
+          : _error || _bytes == null
+          ? Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.broken_image, color: Colors.grey, size: 64),
+                TextButton(
+                  onPressed: _loadImage,
+                  child: const Text(
+                    'Coba Lagi',
+                    style: TextStyle(color: Colors.white),
                   ),
-                ],
-              )
-              : InteractiveViewer(
-                child: Image.memory(_bytes!, fit: BoxFit.contain),
-              ),
+                ),
+              ],
+            )
+          : InteractiveViewer(
+              child: Image.memory(_bytes!, fit: BoxFit.contain),
+            ),
     ),
   );
 }
 
-// ─── Image Bubble ─────────────────────────────────────────────────────────────
 class _ImageBubble extends StatefulWidget {
   final String fileUrl;
   final VoidCallback onTap;
@@ -291,7 +281,6 @@ class _ImageBubbleState extends State<_ImageBubble> {
   }
 }
 
-// ─── Video Bubble ─────────────────────────────────────────────────────────────
 class _VideoBubble extends StatefulWidget {
   final String url;
   const _VideoBubble({required this.url});
@@ -443,7 +432,6 @@ class _VideoBubbleState extends State<_VideoBubble> {
   }
 }
 
-// ─── File Bubble ──────────────────────────────────────────────────────────────
 class _FileBubble extends StatelessWidget {
   final String filePath;
   final bool isMe;
@@ -505,7 +493,6 @@ class _FileBubble extends StatelessWidget {
   );
 }
 
-// ─── Audio Bubble ─────────────────────────────────────────────────────────────
 class _AudioBubble extends StatelessWidget {
   final bool isMe;
   final VoidCallback onOpenExternal;
@@ -558,7 +545,6 @@ class _AudioBubble extends StatelessWidget {
   );
 }
 
-// ─── Seen By Dialog ───────────────────────────────────────────────────────────
 class _SeenByDialog extends StatelessWidget {
   final List seenBy;
   const _SeenByDialog({required this.seenBy});
@@ -573,49 +559,47 @@ class _SeenByDialog extends StatelessWidget {
       ],
     ),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-    content:
-        seenBy.isEmpty
-            ? const Text(
-              'Belum ada yang melihat',
-              style: TextStyle(color: Colors.grey),
-            )
-            : SizedBox(
-              width: double.maxFinite,
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: seenBy.length,
-                itemBuilder: (_, i) {
-                  final u = seenBy[i];
-                  return ListTile(
-                    dense: true,
-                    leading: CircleAvatar(
-                      radius: 16,
-                      backgroundColor: Colors.indigo.shade100,
-                      child: Text(
-                        (u['name'] ?? '?')[0].toUpperCase(),
-                        style: const TextStyle(
-                          color: Colors.indigo,
-                          fontSize: 12,
-                        ),
+    content: seenBy.isEmpty
+        ? const Text(
+            'Belum ada yang melihat',
+            style: TextStyle(color: Colors.grey),
+          )
+        : SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: seenBy.length,
+              itemBuilder: (_, i) {
+                final u = seenBy[i];
+                return ListTile(
+                  dense: true,
+                  leading: CircleAvatar(
+                    radius: 16,
+                    backgroundColor: Colors.indigo.shade100,
+                    child: Text(
+                      (u['name'] ?? '?')[0].toUpperCase(),
+                      style: const TextStyle(
+                        color: Colors.indigo,
+                        fontSize: 12,
                       ),
                     ),
-                    title: Text(
-                      u['name'] ?? '-',
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                    subtitle:
-                        u['seen_at'] != null
-                            ? Text(
-                              DateFormat(
-                                'dd MMM, HH:mm',
-                              ).format(DateTime.parse(u['seen_at']).toLocal()),
-                              style: const TextStyle(fontSize: 10),
-                            )
-                            : null,
-                  );
-                },
-              ),
+                  ),
+                  title: Text(
+                    u['name'] ?? '-',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  subtitle: u['seen_at'] != null
+                      ? Text(
+                          DateFormat(
+                            'dd MMM, HH:mm',
+                          ).format(DateTime.parse(u['seen_at']).toLocal()),
+                          style: const TextStyle(fontSize: 10),
+                        )
+                      : null,
+                );
+              },
             ),
+          ),
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
@@ -625,7 +609,6 @@ class _SeenByDialog extends StatelessWidget {
   );
 }
 
-// ─── Pinned Bar ───────────────────────────────────────────────────────────────
 class _PinnedBar extends StatelessWidget {
   final List pinnedMessages;
   final VoidCallback onTap;
@@ -695,7 +678,6 @@ class _PinnedBar extends StatelessWidget {
   }
 }
 
-// ─── Pinned Sheet ─────────────────────────────────────────────────────────────
 class _PinnedSheet extends StatelessWidget {
   final List pinnedMessages;
   final Function(int) onUnpin;
@@ -803,7 +785,6 @@ class _PinnedSheet extends StatelessWidget {
   );
 }
 
-// ─── Edit Dialog ──────────────────────────────────────────────────────────────
 class _EditDialog extends StatefulWidget {
   final String initialText;
   const _EditDialog({required this.initialText});
@@ -851,7 +832,6 @@ class _EditDialogState extends State<_EditDialog> {
   );
 }
 
-// ─── ChatScreen ───────────────────────────────────────────────────────────────
 class ChatScreen extends StatefulWidget {
   @override
   _ChatScreenState createState() => _ChatScreenState();
@@ -867,10 +847,8 @@ class _ChatScreenState extends State<ChatScreen> {
   List _members = [];
   List _pinnedMessages = [];
   final Set<int> _seenIds = {};
-
-  // Untuk fitur "pesan terakhir dilihat"
-  int? _lastSeenId; // ID pesan terakhir yg sudah dilihat saat buka
-  bool _unreadDividerVisible = false; // apakah divider perlu ditampilkan
+  int? _lastSeenId;
+  bool _unreadDividerVisible = false;
 
   Timer? _timer;
   bool _isLoading = true;
@@ -948,21 +926,17 @@ class _ChatScreenState extends State<ChatScreen> {
             _scrollCtrl.hasClients &&
             _scrollCtrl.position.pixels >=
                 _scrollCtrl.position.maxScrollExtent - 80;
-
-        // Saat pertama buka: tentukan pesan terakhir yang sudah dilihat
         if (isInit && _myId != null) {
           int? lastSeen;
           for (final m in all) {
             final msgId = m['id'] as int;
             final userId = m['user_id'];
-            // Pesan milik sendiri pasti sudah "dilihat"
             if (userId == _myId) {
               lastSeen = msgId;
               _seenIds.add(msgId);
             }
           }
           _lastSeenId = lastSeen;
-          // Tampilkan divider hanya jika ada pesan setelah lastSeenId
           if (_lastSeenId != null) {
             final lastIdx = all.indexWhere((m) => m['id'] == _lastSeenId);
             _unreadDividerVisible = lastIdx >= 0 && lastIdx < all.length - 1;
@@ -971,10 +945,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
         setState(() {
           _messages = all;
-          _pinnedMessages =
-              all
-                  .where((m) => m['is_pinned'] == true || m['is_pinned'] == 1)
-                  .toList();
+          _pinnedMessages = all
+              .where((m) => m['is_pinned'] == true || m['is_pinned'] == 1)
+              .toList();
           _isLoading = false;
         });
 
@@ -994,12 +967,10 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // Scroll ke posisi pesan pertama yang belum dibaca
   void _scrollToFirstUnread() {
     if (!_scrollCtrl.hasClients) return;
 
     if (!_unreadDividerVisible || _lastSeenId == null) {
-      // Tidak ada yang belum dibaca → langsung ke bawah
       _scrollToBottom(animate: false);
       return;
     }
@@ -1009,8 +980,6 @@ class _ChatScreenState extends State<ChatScreen> {
       _scrollToBottom(animate: false);
       return;
     }
-
-    // Scroll ke posisi divider (estimasi: lastIdx + 1 * tinggi rata-rata item)
     final estimatedOffset = ((lastIdx + 1) * 72.0).clamp(
       0.0,
       _scrollCtrl.position.maxScrollExtent,
@@ -1025,7 +994,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _msgCtrl.clear();
     setState(() {
       _replyingTo = null;
-      _unreadDividerVisible = false; // user sudah aktif, sembunyikan divider
+      _unreadDividerVisible = false;
     });
     try {
       final res = await http.post(
@@ -1137,7 +1106,6 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _markSeen(int id) async {
     if (_seenIds.contains(id)) return;
     _seenIds.add(id);
-    // Saat user scroll melewati divider, sembunyikan divider
     if (_unreadDividerVisible && _lastSeenId != null) {
       final msgIdx = _messages.indexWhere((m) => m['id'] == id);
       final lastIdx = _messages.indexWhere((m) => m['id'] == _lastSeenId);
@@ -1163,147 +1131,126 @@ class _ChatScreenState extends State<ChatScreen> {
     final isPinned = chat['is_pinned'] == true || chat['is_pinned'] == 1;
     final fileUrl =
         (chat['file_path'] != null && (chat['file_path'] as String).isNotEmpty)
-            ? buildFileUrl(chat['file_path'])
-            : '';
+        ? buildFileUrl(chat['file_path'])
+        : '';
 
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder:
-          (_) => Padding(
-            padding: const EdgeInsets.fromLTRB(8, 12, 8, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                if (chat['message'] != null &&
-                    (chat['message'] as String).isNotEmpty)
-                  Container(
-                    margin: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      chat['message'],
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.black54,
-                      ),
-                    ),
-                  ),
-                _tile(Icons.reply_rounded, 'Balas', Colors.indigo, () {
-                  Navigator.pop(context);
-                  setState(() => _replyingTo = chat);
-                }),
-                if (chat['message'] != null &&
-                    (chat['message'] as String).isNotEmpty)
-                  _tile(Icons.copy_rounded, 'Salin Teks', Colors.teal, () {
-                    Navigator.pop(context);
-                    Clipboard.setData(ClipboardData(text: chat['message']));
-                    _snack('Teks disalin');
-                  }),
-                if (fileUrl.isNotEmpty)
-                  _tile(
-                    Icons.link_rounded,
-                    'Salin Link File',
-                    Colors.orange,
-                    () {
-                      Navigator.pop(context);
-                      Clipboard.setData(ClipboardData(text: fileUrl));
-                      _snack('Link disalin');
-                    },
-                  ),
-                _tile(
-                  isPinned ? Icons.push_pin_outlined : Icons.push_pin_rounded,
-                  isPinned ? 'Hapus Pin' : 'Pin Pesan',
-                  Colors.purple,
-                  () {
-                    Navigator.pop(context);
-                    _pinMessage(chat['id'], !isPinned);
-                  },
-                ),
-                _tile(
-                  Icons.done_all_rounded,
-                  'Siapa yang Lihat',
-                  Colors.blue,
-                  () {
-                    Navigator.pop(context);
-                    _showSeenBy(chat['id']);
-                  },
-                ),
-                if (isMe && chat['type'] == 'text')
-                  _tile(
-                    Icons.edit_rounded,
-                    'Edit Pesan',
-                    Colors.amber.shade700,
-                    () async {
-                      Navigator.pop(context);
-                      final result = await showDialog<String>(
-                        context: context,
-                        builder:
-                            (_) =>
-                                _EditDialog(initialText: chat['message'] ?? ''),
-                      );
-                      if (result != null && result.isNotEmpty)
-                        _editMessage(chat['id'], result);
-                    },
-                  ),
-                if (isMe)
-                  _tile(Icons.delete_rounded, 'Hapus Pesan', Colors.red, () {
-                    Navigator.pop(context);
-                    showDialog(
-                      context: context,
-                      builder:
-                          (_) => AlertDialog(
-                            title: const Text('Hapus Pesan'),
-                            content: const Text(
-                              'Yakin ingin menghapus pesan ini?',
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('Batal'),
-                              ),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.red,
-                                ),
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                  _deleteMessage(chat['id']);
-                                },
-                                child: const Text(
-                                  'Hapus',
-                                  style: TextStyle(color: Colors.white),
-                                ),
-                              ),
-                            ],
-                          ),
-                    );
-                  }),
-              ],
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(8, 12, 8, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-          ),
+            if (chat['message'] != null &&
+                (chat['message'] as String).isNotEmpty)
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  chat['message'],
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                ),
+              ),
+            _tile(Icons.reply_rounded, 'Balas', Colors.indigo, () {
+              Navigator.pop(context);
+              setState(() => _replyingTo = chat);
+            }),
+            if (chat['message'] != null &&
+                (chat['message'] as String).isNotEmpty)
+              _tile(Icons.copy_rounded, 'Salin Teks', Colors.teal, () {
+                Navigator.pop(context);
+                Clipboard.setData(ClipboardData(text: chat['message']));
+                _snack('Teks disalin');
+              }),
+            if (fileUrl.isNotEmpty)
+              _tile(Icons.link_rounded, 'Salin Link File', Colors.orange, () {
+                Navigator.pop(context);
+                Clipboard.setData(ClipboardData(text: fileUrl));
+                _snack('Link disalin');
+              }),
+            _tile(
+              isPinned ? Icons.push_pin_outlined : Icons.push_pin_rounded,
+              isPinned ? 'Hapus Pin' : 'Pin Pesan',
+              Colors.purple,
+              () {
+                Navigator.pop(context);
+                _pinMessage(chat['id'], !isPinned);
+              },
+            ),
+            _tile(Icons.done_all_rounded, 'Siapa yang Lihat', Colors.blue, () {
+              Navigator.pop(context);
+              _showSeenBy(chat['id']);
+            }),
+            if (isMe && chat['type'] == 'text')
+              _tile(
+                Icons.edit_rounded,
+                'Edit Pesan',
+                Colors.amber.shade700,
+                () async {
+                  Navigator.pop(context);
+                  final result = await showDialog<String>(
+                    context: context,
+                    builder: (_) =>
+                        _EditDialog(initialText: chat['message'] ?? ''),
+                  );
+                  if (result != null && result.isNotEmpty)
+                    _editMessage(chat['id'], result);
+                },
+              ),
+            if (isMe)
+              _tile(Icons.delete_rounded, 'Hapus Pesan', Colors.red, () {
+                Navigator.pop(context);
+                showDialog(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    title: const Text('Hapus Pesan'),
+                    content: const Text('Yakin ingin menghapus pesan ini?'),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Batal'),
+                      ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                        ),
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _deleteMessage(chat['id']);
+                        },
+                        child: const Text(
+                          'Hapus',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1440,83 +1387,76 @@ class _ChatScreenState extends State<ChatScreen> {
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder:
-        (_) => DraggableScrollableSheet(
-          initialChildSize: 0.5,
-          maxChildSize: 0.9,
-          minChildSize: 0.3,
-          expand: false,
-          builder:
-              (_, ctrl) => SingleChildScrollView(
-                controller: ctrl,
-                child: _PinnedSheet(
-                  pinnedMessages: _pinnedMessages,
-                  onUnpin: (id) => _pinMessage(id, false),
-                  onJump: (id) => _jumpTo(id),
-                ),
-              ),
+    builder: (_) => DraggableScrollableSheet(
+      initialChildSize: 0.5,
+      maxChildSize: 0.9,
+      minChildSize: 0.3,
+      expand: false,
+      builder: (_, ctrl) => SingleChildScrollView(
+        controller: ctrl,
+        child: _PinnedSheet(
+          pinnedMessages: _pinnedMessages,
+          onUnpin: (id) => _pinMessage(id, false),
+          onJump: (id) => _jumpTo(id),
         ),
+      ),
+    ),
   );
 
   void _showMembers() => showDialog(
     context: context,
-    builder:
-        (_) => AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.people, color: Colors.indigo),
-              SizedBox(width: 10),
-              Text('Anggota Jonusa'),
-            ],
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          content: SizedBox(
-            width: double.maxFinite,
-            child:
-                _members.isEmpty
-                    ? const Center(child: Text('Memuat...'))
-                    : ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: _members.length,
-                      itemBuilder: (_, i) {
-                        final u = _members[i];
-                        return ListTile(
-                          dense: true,
-                          leading: CircleAvatar(
-                            radius: 16,
-                            backgroundColor: Colors.indigo.shade100,
-                            child: Text(
-                              u['name'][0].toUpperCase(),
-                              style: const TextStyle(
-                                color: Colors.indigo,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                          title: Text(
-                            u['name'] + (u['id'] == _myId ? ' (Anda)' : ''),
-                            style: const TextStyle(fontSize: 13),
-                          ),
-                          subtitle: Text(
-                            u['email'] ?? '-',
-                            style: const TextStyle(fontSize: 11),
-                          ),
-                        );
-                      },
+    builder: (_) => AlertDialog(
+      title: const Row(
+        children: [
+          Icon(Icons.people, color: Colors.indigo),
+          SizedBox(width: 10),
+          Text('Anggota Jonusa'),
+        ],
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: _members.isEmpty
+            ? const Center(child: Text('Memuat...'))
+            : ListView.builder(
+                shrinkWrap: true,
+                itemCount: _members.length,
+                itemBuilder: (_, i) {
+                  final u = _members[i];
+                  return ListTile(
+                    dense: true,
+                    leading: CircleAvatar(
+                      radius: 16,
+                      backgroundColor: Colors.indigo.shade100,
+                      child: Text(
+                        u['name'][0].toUpperCase(),
+                        style: const TextStyle(
+                          color: Colors.indigo,
+                          fontSize: 12,
+                        ),
+                      ),
                     ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Tutup'),
-            ),
-          ],
+                    title: Text(
+                      u['name'] + (u['id'] == _myId ? ' (Anda)' : ''),
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                    subtitle: Text(
+                      u['email'] ?? '-',
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                  );
+                },
+              ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Tutup'),
         ),
+      ],
+    ),
   );
 
-  // ── Divider "Pesan Baru" ─────────────────────────────────────────────────────
   Widget _buildUnreadDivider() => Container(
     margin: const EdgeInsets.symmetric(vertical: 8),
     child: Row(
@@ -1554,8 +1494,6 @@ class _ChatScreenState extends State<ChatScreen> {
       ],
     ),
   );
-
-  // ── Hitung jumlah item (termasuk divider) ───────────────────────────────────
   int _itemCount() {
     if (_unreadDividerVisible && _lastSeenId != null) {
       final lastIdx = _messages.indexWhere((m) => m['id'] == _lastSeenId);
@@ -1566,12 +1504,10 @@ class _ChatScreenState extends State<ChatScreen> {
     return _messages.length;
   }
 
-  // ── Build item dengan injeksi divider ───────────────────────────────────────
   Widget _buildListItem(int i) {
     if (_unreadDividerVisible && _lastSeenId != null) {
       final lastIdx = _messages.indexWhere((m) => m['id'] == _lastSeenId);
-      final dividerIndex =
-          lastIdx + 1; // tepat setelah pesan terakhir yg dilihat
+      final dividerIndex = lastIdx + 1;
       if (lastIdx >= 0 && lastIdx < _messages.length - 1) {
         if (i == dividerIndex) return _buildUnreadDivider();
         final realIndex = i > dividerIndex ? i - 1 : i;
@@ -1639,21 +1575,20 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         _PinnedBar(pinnedMessages: _pinnedMessages, onTap: _showPinnedSheet),
         Expanded(
-          child:
-              _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : RefreshIndicator(
-                    onRefresh: _fetchChats,
-                    child: ListView.builder(
-                      controller: _scrollCtrl,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 10,
-                      ),
-                      itemCount: _itemCount(),
-                      itemBuilder: (_, i) => _buildListItem(i),
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : RefreshIndicator(
+                  onRefresh: _fetchChats,
+                  child: ListView.builder(
+                    controller: _scrollCtrl,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 10,
                     ),
+                    itemCount: _itemCount(),
+                    itemBuilder: (_, i) => _buildListItem(i),
                   ),
+                ),
         ),
         _buildInput(),
       ],
@@ -1663,23 +1598,20 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildBubble(dynamic chat, bool isMe) {
     final type = chat['type'] as String? ?? 'text';
     final filePath = chat['file_path'] as String?;
-    final fileUrl =
-        (filePath != null && filePath.isNotEmpty) ? buildFileUrl(filePath) : '';
+    final fileUrl = (filePath != null && filePath.isNotEmpty)
+        ? buildFileUrl(filePath)
+        : '';
     final isPinned = chat['is_pinned'] == true || chat['is_pinned'] == 1;
     final isEdited = chat['is_edited'] == true || chat['is_edited'] == 1;
-
-    // ── FIX centang ──────────────────────────────────────────────────────────
-    // seen_by_count = jumlah orang yang sudah lihat pesan ini
-    // Centang 1 (abu)  = pesan sudah terkirim, belum ada orang lain yang lihat
-    // Centang 2 (biru) = sudah ada minimal 1 orang lain yang lihat
     final seenCount = (chat['seen_by_count'] ?? 0) as int;
     final hasOtherSeen = isMe && seenCount > 0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 5),
       child: Column(
-        crossAxisAlignment:
-            isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: isMe
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
           if (!isMe)
             Padding(
@@ -1694,8 +1626,9 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
           Row(
-            mainAxisAlignment:
-                isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+            mainAxisAlignment: isMe
+                ? MainAxisAlignment.end
+                : MainAxisAlignment.start,
             children: [
               Container(
                 constraints: BoxConstraints(
@@ -1752,10 +1685,9 @@ class _ChatScreenState extends State<ChatScreen> {
                           margin: const EdgeInsets.only(bottom: 6),
                           padding: const EdgeInsets.all(7),
                           decoration: BoxDecoration(
-                            color:
-                                isMe
-                                    ? Colors.white.withOpacity(0.2)
-                                    : Colors.grey.shade100,
+                            color: isMe
+                                ? Colors.white.withOpacity(0.2)
+                                : Colors.grey.shade100,
                             borderRadius: BorderRadius.circular(8),
                             border: Border(
                               left: BorderSide(
@@ -1795,17 +1727,15 @@ class _ChatScreenState extends State<ChatScreen> {
                         key: ValueKey(fileUrl),
                         fileUrl: fileUrl,
                         token: _token,
-                        onTap:
-                            () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder:
-                                    (_) => _FullscreenImageViewer(
-                                      imageUrl: fileUrl,
-                                      token: _token,
-                                    ),
-                              ),
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => _FullscreenImageViewer(
+                              imageUrl: fileUrl,
+                              token: _token,
                             ),
+                          ),
+                        ),
                       ),
                     if (type == 'video' && fileUrl.isNotEmpty)
                       _VideoBubble(url: fileUrl),
@@ -1856,8 +1786,9 @@ class _ChatScreenState extends State<ChatScreen> {
             padding: const EdgeInsets.only(top: 2, left: 4, right: 4),
             child: Row(
               mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment:
-                  isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+              mainAxisAlignment: isMe
+                  ? MainAxisAlignment.end
+                  : MainAxisAlignment.start,
               children: [
                 if (isPinned) ...[
                   const Icon(
@@ -1880,21 +1811,19 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 if (isMe) ...[
                   const SizedBox(width: 4),
-                  // ── Centang 1 = belum ada yang lihat, Centang 2 = sudah ada ──
                   GestureDetector(
                     onTap: () => _showSeenBy(chat['id']),
-                    child:
-                        hasOtherSeen
-                            ? const Icon(
-                              Icons.done_all_rounded,
-                              size: 14,
-                              color: Colors.blue,
-                            )
-                            : const Icon(
-                              Icons.done_rounded,
-                              size: 14,
-                              color: Colors.grey,
-                            ),
+                    child: hasOtherSeen
+                        ? const Icon(
+                            Icons.done_all_rounded,
+                            size: 14,
+                            color: Colors.blue,
+                          )
+                        : const Icon(
+                            Icons.done_rounded,
+                            size: 14,
+                            color: Colors.grey,
+                          ),
                   ),
                 ],
               ],
@@ -1983,62 +1912,61 @@ class _ChatScreenState extends State<ChatScreen> {
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder:
-        (_) => Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+    builder: (_) => Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Lampiran',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              const Text(
-                'Lampiran',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              _attach(
+                Icons.image_rounded,
+                'Gambar',
+                const Color(0xFF7C4DFF),
+                () {
+                  Navigator.pop(context);
+                  _pickMedia('image');
+                },
               ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _attach(
-                    Icons.image_rounded,
-                    'Gambar',
-                    const Color(0xFF7C4DFF),
-                    () {
-                      Navigator.pop(context);
-                      _pickMedia('image');
-                    },
-                  ),
-                  _attach(
-                    Icons.videocam_rounded,
-                    'Video',
-                    const Color(0xFFE53935),
-                    () {
-                      Navigator.pop(context);
-                      _pickMedia('video');
-                    },
-                  ),
-                  _attach(
-                    Icons.audiotrack_rounded,
-                    'Audio',
-                    const Color(0xFF6A1B9A),
-                    () {
-                      Navigator.pop(context);
-                      _pickMedia('audio');
-                    },
-                  ),
-                  _attach(
-                    Icons.folder_rounded,
-                    'Dokumen',
-                    const Color(0xFF1565C0),
-                    () {
-                      Navigator.pop(context);
-                      _pickMedia('file');
-                    },
-                  ),
-                ],
+              _attach(
+                Icons.videocam_rounded,
+                'Video',
+                const Color(0xFFE53935),
+                () {
+                  Navigator.pop(context);
+                  _pickMedia('video');
+                },
+              ),
+              _attach(
+                Icons.audiotrack_rounded,
+                'Audio',
+                const Color(0xFF6A1B9A),
+                () {
+                  Navigator.pop(context);
+                  _pickMedia('audio');
+                },
+              ),
+              _attach(
+                Icons.folder_rounded,
+                'Dokumen',
+                const Color(0xFF1565C0),
+                () {
+                  Navigator.pop(context);
+                  _pickMedia('file');
+                },
               ),
             ],
           ),
-        ),
+        ],
+      ),
+    ),
   );
 
   Widget _attach(

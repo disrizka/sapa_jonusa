@@ -942,10 +942,8 @@ class _CheckoutScreenState extends State<CheckoutScreen>
     );
   }
 
-  // ── Photo Section ─────────────────────────────────────────────────────────
   Widget _buildPhotoSection() {
     return GestureDetector(
-      // FIX: gunakan _canTakePhoto, bukan _canSubmit || _imageFile != null
       onTap: _canTakePhoto ? _takePhoto : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),

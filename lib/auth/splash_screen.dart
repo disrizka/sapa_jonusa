@@ -25,7 +25,6 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkLogin() async {
-    // Delay untuk memberikan efek loading splash screen
     await Future.delayed(const Duration(milliseconds: 1500));
 
     final token = await _storage.read(key: 'auth_token');
@@ -34,7 +33,6 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
 
     if (token != null && role != null) {
-      // ── Kirim ulang FCM token (handle reinstall / token refresh) ──
       await _sendFcmToken(token);
 
       if (!mounted) return;
@@ -58,7 +56,6 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  // ── Kirim FCM token ke server ─────────────────────────────────────────────
   Future<void> _sendFcmToken(String authToken) async {
     try {
       final fcmToken = await FcmService.getToken();
@@ -94,7 +91,6 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Container Ikon dengan Gambar Fingerprint
             Container(
               width: 85,
               height: 85,
@@ -120,7 +116,6 @@ class _SplashScreenState extends State<SplashScreen> {
                   color: Colors.white,
                   fit: BoxFit.contain,
                   errorBuilder: (context, error, stackTrace) {
-                    // Fallback jika gambar tidak ditemukan
                     return const Icon(
                       Icons.fingerprint,
                       color: Colors.white,
@@ -150,7 +145,6 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
             ),
             const SizedBox(height: 50),
-            // Indikator Loading di bagian bawah
             const SizedBox(
               width: 24,
               height: 24,

@@ -6,8 +6,6 @@ import 'package:intl/intl.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sapa_jonusa/api/api.dart' as Api;
 
-// ─── MODEL DATA ──────────────────────────────────────────────────────────────
-
 class Holiday {
   final String date;
   final String title;
@@ -19,8 +17,6 @@ class Holiday {
     title: json['title'] as String? ?? 'Libur',
   );
 }
-
-// ─── SCREEN UTAMA ────────────────────────────────────────────────────────────
 
 class JadwalKerjaScreen extends StatefulWidget {
   final String? token;
@@ -48,8 +44,6 @@ class _JadwalKerjaScreenState extends State<JadwalKerjaScreen> {
     _resolveTokenThenFetch();
   }
 
-  // ── Ambil Token dari Secure Storage ────────────────────────────────────────
-
   Future<void> _resolveTokenThenFetch() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
@@ -62,8 +56,6 @@ class _JadwalKerjaScreenState extends State<JadwalKerjaScreen> {
     _activeToken = token?.trim();
     await _fetchHolidays();
   }
-
-  // ── Fetch Data dari API ────────────────────────────────────────────────────
 
   Future<void> _fetchHolidays() async {
     if (_activeToken == null) {
@@ -116,11 +108,8 @@ class _JadwalKerjaScreenState extends State<JadwalKerjaScreen> {
     }
   }
 
-  // ── Helper Logika Libur (Sesuai Permintaan Rizka) ──────────────────────────
-
   bool _isHoliday(DateTime day) {
     String formatted = DateFormat('yyyy-MM-dd').format(day);
-    // HANYA JUMAT yang libur mingguan. Sabtu & Minggu tidak otomatis merah.
     return (day.weekday == DateTime.friday) || _holidays.containsKey(formatted);
   }
 
@@ -133,29 +122,24 @@ class _JadwalKerjaScreenState extends State<JadwalKerjaScreen> {
     return null;
   }
 
-  // ── UI BUILDER ─────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FF),
-      body:
-          _isLoading
-              ? const Center(
-                child: CircularProgressIndicator(color: Colors.indigo),
-              )
-              : CustomScrollView(
-                slivers: [
-                  _buildAppBar(),
-                  SliverToBoxAdapter(child: _buildLegend()),
-                  SliverToBoxAdapter(child: _buildCalendarCard()),
-                  SliverToBoxAdapter(
-                    child: _buildSectionTitle("Daftar Libur Bulan Ini"),
-                  ),
-                  _buildHolidayList(),
-                  const SliverToBoxAdapter(child: SizedBox(height: 30)),
-                ],
-              ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: Colors.indigo))
+          : CustomScrollView(
+              slivers: [
+                _buildAppBar(),
+                SliverToBoxAdapter(child: _buildLegend()),
+                SliverToBoxAdapter(child: _buildCalendarCard()),
+                SliverToBoxAdapter(
+                  child: _buildSectionTitle("Daftar Libur Bulan Ini"),
+                ),
+                _buildHolidayList(),
+                const SliverToBoxAdapter(child: SizedBox(height: 30)),
+              ],
+            ),
     );
   }
 
@@ -166,13 +150,10 @@ class _JadwalKerjaScreenState extends State<JadwalKerjaScreen> {
       pinned: true,
       elevation: 0,
       backgroundColor: Colors.indigo.shade800,
-      // centerTitle di sini untuk leading/actions
       centerTitle: true,
       leading: const BackButton(color: Colors.white),
       flexibleSpace: FlexibleSpaceBar(
-        // TAMBAHKAN INI agar teks di dalam FlexibleSpaceBar ke tengah
         centerTitle: true,
-        // Sesuaikan padding agar benar-benar di tengah secara vertikal saat AppBar mengecil
         titlePadding: const EdgeInsets.only(bottom: 16),
         title: const Text(
           'Jadwal Kerja',
@@ -234,7 +215,6 @@ class _JadwalKerjaScreenState extends State<JadwalKerjaScreen> {
             color: Colors.indigo,
             shape: BoxShape.circle,
           ),
-          // Sabtu & Minggu tetap hitam (Hari Kerja)
           weekendTextStyle: TextStyle(color: Colors.black87),
           outsideDaysVisible: false,
         ),
@@ -281,20 +261,16 @@ class _JadwalKerjaScreenState extends State<JadwalKerjaScreen> {
   }
 
   Widget _buildHolidayList() {
-    // Cari hari terakhir di bulan ini
     int lastDay = DateTime(_focusedDay.year, _focusedDay.month + 1, 0).day;
 
     final List<Holiday> monthHolidays = [];
 
-    // 1. Tambahkan dari API
     _holidays.values.forEach((h) {
       final d = DateTime.parse(h.date);
       if (d.month == _focusedDay.month && d.year == _focusedDay.year) {
         monthHolidays.add(h);
       }
     });
-
-    // 2. Tambahkan hari Jumat secara manual jika belum ada di API
     for (int i = 1; i <= lastDay; i++) {
       DateTime d = DateTime(_focusedDay.year, _focusedDay.month, i);
       if (d.weekday == DateTime.friday) {
@@ -439,49 +415,45 @@ class _JadwalKerjaScreenState extends State<JadwalKerjaScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder:
-          (context) => Container(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.event_note, color: Colors.red, size: 50),
-                const SizedBox(height: 15),
-                Text(
-                  holiday.title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  DateFormat(
-                    'EEEE, d MMMM yyyy',
-                    'id_ID',
-                  ).format(DateTime.parse(holiday.date)),
-                ),
-                const SizedBox(height: 25),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.indigo,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text(
-                      "Tutup",
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                ),
-              ],
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.event_note, color: Colors.red, size: 50),
+            const SizedBox(height: 15),
+            Text(
+              holiday.title,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              textAlign: TextAlign.center,
             ),
-          ),
+            const SizedBox(height: 8),
+            Text(
+              DateFormat(
+                'EEEE, d MMMM yyyy',
+                'id_ID',
+              ).format(DateTime.parse(holiday.date)),
+            ),
+            const SizedBox(height: 25),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.indigo,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  "Tutup",
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -1,5 +1,3 @@
-// widgets/image_bubble.dart
-
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -7,7 +5,6 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import '../utils/image_cache_manager.dart';
 
-// ─── Fullscreen Image Viewer ─────────────────────────────────────────────────
 class FullscreenImageViewer extends StatefulWidget {
   final String imageUrl;
   final String? token;
@@ -78,7 +75,6 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
     }
   }
 
-  /// Simpan gambar ke folder Documents lokal
   Future<void> _saveImage() async {
     if (_bytes == null || _isSaving) return;
     setState(() => _isSaving = true);
@@ -185,7 +181,6 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
   );
 }
 
-// ─── Image Bubble (thumbnail in chat) ────────────────────────────────────────
 class ImageBubble extends StatefulWidget {
   final String fileUrl;
   final VoidCallback onTap;

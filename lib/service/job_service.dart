@@ -25,6 +25,57 @@ class TechnicianUser {
   }
 }
 
+class StepRequirement {
+  final int stepNumber;
+  final String stepName;
+  final bool reqDesc;
+  final bool reqPhoto;
+  final bool reqVideo;
+
+  StepRequirement({
+    required this.stepNumber,
+    required this.stepName,
+    required this.reqDesc,
+    required this.reqPhoto,
+    required this.reqVideo,
+  });
+
+  factory StepRequirement.fromJson(Map<String, dynamic> json) {
+    return StepRequirement(
+      stepNumber: (json['step_number'] as num?)?.toInt() ?? 0,
+      stepName: json['step_name'] as String? ?? '',
+      reqDesc: json['req_desc'] == true,
+      reqPhoto: json['req_photo'] == true,
+      reqVideo: json['req_video'] == true,
+    );
+  }
+}
+
+Map<int, StepRequirement> _parseStepRequirements(dynamic raw) {
+  final result = <int, StepRequirement>{};
+  if (raw == null) return result;
+
+  if (raw is Map) {
+    raw.forEach((key, value) {
+      if (value is Map<String, dynamic>) {
+        final stepNum = int.tryParse(key.toString()) ?? 0;
+        final data = Map<String, dynamic>.from(value);
+        data['step_number'] ??= stepNum;
+        result[stepNum] = StepRequirement.fromJson(data);
+      }
+    });
+  } else if (raw is List) {
+    for (final item in raw) {
+      if (item is Map<String, dynamic>) {
+        final req = StepRequirement.fromJson(item);
+        result[req.stepNumber] = req;
+      }
+    }
+  }
+
+  return result;
+}
+
 class Job {
   final int id;
   final String title;
@@ -37,6 +88,7 @@ class Job {
   final int? technicianId;
   final List<JobTracker> trackers;
   final List<JobComment> comments;
+  final Map<int, StepRequirement> _stepRequirementsMap;
   final String? createdAt;
   final String? clientName;
   final String? location;
@@ -62,6 +114,7 @@ class Job {
     this.technicianId,
     required this.trackers,
     required this.comments,
+    Map<int, StepRequirement> stepRequirementsMap = const {},
     this.createdAt,
     this.clientName,
     this.location,
@@ -74,29 +127,42 @@ class Job {
     this.actualDuration,
     this.completionReason,
     this.isOverdue = false,
-  });
+  }) : _stepRequirementsMap = stepRequirementsMap;
 
   bool get isPending => status == 'pending';
   bool get isProcess => status == 'process';
   bool get isCompleted => status == 'completed';
 
+  StepRequirement? requirementForStep(int step) => _stepRequirementsMap[step];
+
+  String get actualDurationLabel {
+    if (actualDuration == null) return '-';
+    final h = actualDuration! ~/ 3600;
+    final m = (actualDuration! % 3600) ~/ 60;
+    if (h > 0 && m > 0) return '${h}j ${m}m';
+    if (h > 0) return '${h}j';
+    if (m > 0) return '${m}m';
+    return '< 1m';
+  }
+
   factory Job.fromJson(Map<String, dynamic> json) {
     return Job(
-      id: json['id'] as int,
+      id: (json['id'] as num).toInt(),
       title: json['title'] as String,
       description: json['description'] as String?,
       status: json['status'] as String,
-      currentStep: json['current_step'] as int?,
+      currentStep: (json['current_step'] as num?)?.toInt(),
       feedback: json['feedback'] as String?,
       cs: json['cs'] as Map<String, dynamic>?,
       technician: json['technician'] as Map<String, dynamic>?,
-      technicianId: json['technician_id'] as int?,
+      technicianId: (json['technician_id'] as num?)?.toInt(),
       trackers: (json['trackers'] as List<dynamic>? ?? [])
           .map((t) => JobTracker.fromJson(t as Map<String, dynamic>))
           .toList(),
       comments: (json['comments'] as List<dynamic>? ?? [])
           .map((c) => JobComment.fromJson(c as Map<String, dynamic>))
           .toList(),
+      stepRequirementsMap: _parseStepRequirements(json['step_requirements']),
       createdAt: json['created_at'] as String?,
       clientName: json['client_name'] as String?,
       location: json['location'] as String?,
@@ -106,9 +172,9 @@ class Job {
       endTime: json['end_time'] as String?,
       acceptedAt: json['accepted_at'] as String?,
       completedAt: json['completed_at'] as String?,
-      actualDuration: json['actual_duration'] as int?,
+      actualDuration: (json['actual_duration'] as num?)?.toInt(),
       completionReason: json['completion_reason'] as String?,
-      isOverdue: json['is_overdue'] as bool? ?? false,
+      isOverdue: json['is_overdue'] == true,
     );
   }
 }
@@ -131,8 +197,8 @@ class JobTracker {
   });
 
   factory JobTracker.fromJson(Map<String, dynamic> json) => JobTracker(
-    id: json['id'] as int? ?? 0,
-    stepNumber: json['step_number'] as int? ?? 0,
+    id: (json['id'] as num?)?.toInt() ?? 0,
+    stepNumber: (json['step_number'] as num?)?.toInt() ?? 0,
     descriptionValue: json['description_value'] as String?,
     photoUrl: json['photo_url'] as String?,
     videoUrl: json['video_url'] as String?,
@@ -156,10 +222,10 @@ class JobComment {
   });
 
   factory JobComment.fromJson(Map<String, dynamic> json) => JobComment(
-    id: json['id'] as int? ?? 0,
+    id: (json['id'] as num?)?.toInt() ?? 0,
     comment: json['comment'] as String? ?? '',
     userName: json['user_name'] as String? ?? '-',
-    userId: json['user_id'] as int? ?? 0,
+    userId: (json['user_id'] as num?)?.toInt() ?? 0,
     createdAt: json['created_at'] as String?,
   );
 }

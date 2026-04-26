@@ -10,7 +10,6 @@ import 'package:geocoding/geocoding.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:sapa_jonusa/api/api.dart' as Api;
 
-// ─── Color Palette ──────────────────────────────────────────────────────────
 const kPrimaryBlue = Color(0xFF1565C0);
 const kAccentBlue = Color(0xFF1E88E5);
 const kLightBlue = Color(0xFFE3F2FD);
@@ -19,7 +18,6 @@ const kSkyBlue = Color(0xFF42A5F5);
 const kSuccessGreen = Color(0xFF00897B);
 const kErrorRed = Color(0xFFE53935);
 const kAmber = Color(0xFFF57C00);
-// ────────────────────────────────────────────────────────────────────────────
 
 class CheckinScreen extends StatefulWidget {
   const CheckinScreen({super.key});
@@ -37,21 +35,14 @@ class _CheckinScreenState extends State<CheckinScreen>
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
-  // ── Office Config ──────────────────────────────────────────────────────────
   double _officeLat = -6.2000;
   double _officeLng = 106.8166;
   double _officeRadius = 50.0;
   String _checkInLimit = "08:00";
   int _tolerance = 0;
-
-  // ── Holiday ────────────────────────────────────────────────────────────────
   bool _isHoliday = false;
   String _holidayName = "";
-
-  // ── Radius Enforcement ────────────────────────────────────────────────────
   bool _isRadiusEnforced = true;
-
-  // ── State ─────────────────────────────────────────────────────────────────
   bool _isLoading = true;
   bool _isSubmitting = false;
   bool _isLate = false;
@@ -61,20 +52,15 @@ class _CheckinScreenState extends State<CheckinScreen>
   LatLng? _currentPosition;
   double? _distanceFromOffice;
   File? _imageFile;
-
-  // ── Computed ───────────────────────────────────────────────────────────────
   bool get _isBlockedByRadius => _isRadiusEnforced && !_isInRadius;
-
   bool get _willAutoApprove =>
       !_isHoliday && !_isLate && _isRadiusEnforced && _isInRadius;
-
   bool get _canTakePhoto =>
       !_isHoliday &&
       !_isLate &&
       !_isBlockedByRadius &&
       !_isSubmitting &&
       _currentPosition != null;
-
   bool get _canSubmit =>
       _imageFile != null &&
       !_isHoliday &&
@@ -103,7 +89,6 @@ class _CheckinScreenState extends State<CheckinScreen>
     super.dispose();
   }
 
-  // ── FIX: config & lokasi paralel, loading selesai setelah keduanya done ───
   Future<void> _init() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
@@ -172,7 +157,6 @@ class _CheckinScreenState extends State<CheckinScreen>
     if (mounted) setState(() => _isLate = now.isAfter(deadline));
   }
 
-  // ── FIX: tidak set _isLoading sendiri, dihandle oleh _init ───────────────
   Future<void> _fetchLocation() async {
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -194,7 +178,7 @@ class _CheckinScreenState extends State<CheckinScreen>
       if (!mounted) return;
       setState(() => _currentPosition = ll);
       _validateRadius(ll);
-      _getAddressFromLatLng(ll); // background, tidak perlu await
+      _getAddressFromLatLng(ll);
     } catch (e) {
       if (mounted) _showSnackBar("Gagal mengambil lokasi: $e", isError: true);
     }
@@ -268,7 +252,6 @@ class _CheckinScreenState extends State<CheckinScreen>
     }
   }
 
-  // ─── Helpers ─────────────────────────────────────────────────────────────
   void _moveCamera(LatLng pos) async {
     if (!_controller.isCompleted) return;
     final c = await _controller.future;
@@ -479,7 +462,6 @@ class _CheckinScreenState extends State<CheckinScreen>
     );
   }
 
-  // ─── BUILD ────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -508,14 +490,12 @@ class _CheckinScreenState extends State<CheckinScreen>
           ),
         ),
       ),
-      // FIX: Map selalu di background, loading overlay di atasnya
       body: Stack(
         children: [_buildMapBody(), if (_isLoading) _buildLoadingOverlay()],
       ),
     );
   }
 
-  // ── Loading sebagai overlay, bukan replace seluruh body ──────────────────
   Widget _buildLoadingOverlay() {
     return Container(
       color: kDeepBlue.withOpacity(0.85),
@@ -564,9 +544,7 @@ class _CheckinScreenState extends State<CheckinScreen>
   }
 
   Widget _buildMapBody() {
-    // FIX: fallback ke koordinat kantor agar GoogleMap tidak null
     final initialTarget = _currentPosition ?? LatLng(_officeLat, _officeLng);
-
     return Stack(
       children: [
         GoogleMap(
@@ -578,7 +556,6 @@ class _CheckinScreenState extends State<CheckinScreen>
           ),
           onMapCreated: (c) {
             if (!_controller.isCompleted) _controller.complete(c);
-            // Pindahkan kamera ke posisi user jika sudah tersedia
             if (_currentPosition != null) {
               c.animateCamera(
                 CameraUpdate.newLatLngZoom(_currentPosition!, 17),

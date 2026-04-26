@@ -6,7 +6,6 @@ import 'package:latlong2/latlong.dart';
 import 'package:sapa_jonusa/service/job_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-
 const _kPrimary = Color(0xFF1565C0);
 const _kAccent = Color(0xFF0D47A1);
 const _kBg = Color(0xFFF0F4FF);
@@ -35,16 +34,11 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
   bool _loading = true;
   bool _submitting = false;
   String? _error;
-
-  // Location
   double? _selectedLat;
   double? _selectedLng;
   bool _showMap = false;
-
-  // Time scheduling
   DateTime? _startDateTime;
   DateTime? _endDateTime;
-
   String _userName = '';
   String _userRole = '';
   String _userDivision = '';
@@ -380,10 +374,7 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
                   ? 'Judul tidak boleh kosong'
                   : null,
             ),
-
             const SizedBox(height: 16),
-
-            // ── Deskripsi ────────────────────────────────────────────────────
             _label('Deskripsi Pekerjaan'),
             const SizedBox(height: 6),
             TextFormField(
@@ -395,12 +386,7 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
                 icon: Icons.description_outlined,
               ),
             ),
-
             const SizedBox(height: 16),
-
-            // ══════════════════════════════════════════════════════════════
-            // BARU: Nama Klien
-            // ══════════════════════════════════════════════════════════════
             _sectionHeader('👤 Informasi Klien'),
             const SizedBox(height: 10),
             _label('Nama Klien *'),
@@ -418,10 +404,6 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
             ),
 
             const SizedBox(height: 24),
-
-            // ══════════════════════════════════════════════════════════════
-            // BARU: Lokasi via Map
-            // ══════════════════════════════════════════════════════════════
             _sectionHeader('📍 Lokasi Pekerjaan'),
             const SizedBox(height: 10),
             _label('Alamat'),
@@ -442,8 +424,6 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
                     ),
                   ),
             ),
-
-            // ── Koordinat info ──────────────────────────────────────────
             if (_selectedLat != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
@@ -462,8 +442,6 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
                   ],
                 ),
               ),
-
-            // ── Map picker ──────────────────────────────────────────────
             if (_showMap) ...[
               const SizedBox(height: 12),
               Container(
@@ -548,16 +526,9 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
                 ),
               ),
             ],
-
             const SizedBox(height: 24),
-
-            // ══════════════════════════════════════════════════════════════
-            // BARU: Estimasi Waktu
-            // ══════════════════════════════════════════════════════════════
             _sectionHeader('🕐 Waktu Pengerjaan'),
             const SizedBox(height: 10),
-
-            // Waktu Mulai
             _label('Waktu Mulai *'),
             const SizedBox(height: 6),
             _buildDateTimeButton(
@@ -567,10 +538,7 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
               color: _kPrimary,
               onTap: () => _pickDateTime(isStart: true),
             ),
-
             const SizedBox(height: 12),
-
-            // Waktu Selesai (Estimasi)
             _label('Estimasi Selesai *'),
             const SizedBox(height: 6),
             _buildDateTimeButton(
@@ -580,8 +548,6 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
               color: _kRed,
               onTap: () => _pickDateTime(isStart: false),
             ),
-
-            // Durasi estimasi
             if (_estimasiDurasi() != null)
               Container(
                 margin: const EdgeInsets.only(top: 10),
@@ -609,10 +575,7 @@ class _CsCreateJobScreenState extends State<CsCreateJobScreen> {
                   ],
                 ),
               ),
-
             const SizedBox(height: 24),
-
-            // ── Pilih Teknisi ────────────────────────────────────────────────
             _sectionHeader('🔧 Pilih Teknisi'),
             const SizedBox(height: 10),
 

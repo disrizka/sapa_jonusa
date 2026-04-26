@@ -56,7 +56,7 @@ class MyApp extends StatelessWidget {
           foregroundColor: Colors.black,
         ),
       ),
-      home: const SplashScreen(), // ← tetap langsung ke SplashScreen
+      home: const SplashScreen(),
     );
   }
 }

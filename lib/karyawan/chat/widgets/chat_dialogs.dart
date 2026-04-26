@@ -1,9 +1,6 @@
-// widgets/chat_dialogs.dart
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-// ─── Seen By Dialog ───────────────────────────────────────────────────────────
 class SeenByDialog extends StatelessWidget {
   final List seenBy;
   const SeenByDialog({super.key, required this.seenBy});
@@ -68,7 +65,6 @@ class SeenByDialog extends StatelessWidget {
   );
 }
 
-// ─── Edit Dialog ──────────────────────────────────────────────────────────────
 class EditMessageDialog extends StatefulWidget {
   final String initialText;
   const EditMessageDialog({super.key, required this.initialText});
@@ -118,7 +114,6 @@ class _EditMessageDialogState extends State<EditMessageDialog> {
   );
 }
 
-// ─── Pinned Bar ───────────────────────────────────────────────────────────────
 class PinnedBar extends StatelessWidget {
   final List pinnedMessages;
   final VoidCallback onTap;
@@ -192,7 +187,6 @@ class PinnedBar extends StatelessWidget {
   }
 }
 
-// ─── Pinned Sheet ─────────────────────────────────────────────────────────────
 class PinnedSheet extends StatelessWidget {
   final List pinnedMessages;
   final Function(int) onUnpin;
@@ -296,7 +290,6 @@ class PinnedSheet extends StatelessWidget {
   );
 }
 
-// ─── Unread Divider ("Pesan Baru") ───────────────────────────────────────────
 class UnreadDivider extends StatelessWidget {
   const UnreadDivider({super.key});
 
@@ -340,9 +333,6 @@ class UnreadDivider extends StatelessWidget {
   );
 }
 
-// ─── Date Separator (seperti WhatsApp) ───────────────────────────────────────
-/// Tampilkan label tanggal di antara pesan dari hari yang berbeda.
-/// Format: "Hari ini", "Kemarin", atau "20 Apr 2025"
 class DateSeparator extends StatelessWidget {
   final DateTime date;
   const DateSeparator({super.key, required this.date});
@@ -355,8 +345,6 @@ class DateSeparator extends StatelessWidget {
 
     if (d == today) return 'Hari ini';
     if (d == yesterday) return 'Kemarin';
-
-    // Kalau tahun sama, tidak perlu tampilkan tahun
     if (d.year == today.year) {
       return DateFormat('d MMM', 'id_ID').format(date);
     }
@@ -370,7 +358,6 @@ class DateSeparator extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
         decoration: BoxDecoration(
-          // Latar gelap transparan ala WhatsApp
           color: const Color(0xFF1A237E).withOpacity(0.10),
           borderRadius: BorderRadius.circular(20),
         ),

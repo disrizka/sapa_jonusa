@@ -7,7 +7,6 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sapa_jonusa/api/api.dart' as Api;
 
-// ─── Design Tokens (sama dengan SakitScreen) ───────────────────────
 const _primary = Color(0xFF1565C0);
 const _primaryTint = Color(0xFFEBF3FF);
 const _primaryBorder = Color(0xFFD8E8FF);
@@ -18,7 +17,7 @@ const _textPrimary = Color(0xFF0D3B7A);
 const _textSub = Color(0xFF4A6B9A);
 const _textHint = Color(0xFFA0BCDA);
 const _border = Color(0xFFD8E8FF);
-// ───────────────────────────────────────────────────────────────────
+const _tintBorder = Color(0xFF4A6B9B);
 
 class CutiScreen extends StatefulWidget {
   const CutiScreen({super.key});
@@ -215,7 +214,6 @@ class _CutiScreenState extends State<CutiScreen>
     );
   }
 
-  // ─── Header ────────────────────────────────────────────────────────
   Widget _buildHeader(BuildContext context) {
     return Container(
       color: _primary,
@@ -289,7 +287,6 @@ class _CutiScreenState extends State<CutiScreen>
     );
   }
 
-  // ─── Card Shell ────────────────────────────────────────────────────
   Widget _buildSectionCard({
     required IconData icon,
     required String title,
@@ -366,7 +363,6 @@ class _CutiScreenState extends State<CutiScreen>
     );
   }
 
-  // ─── Jenis Pengajuan Card ──────────────────────────────────────────
   Widget _buildJenisCard() {
     return _buildSectionCard(
       icon: Icons.category_rounded,
@@ -457,7 +453,6 @@ class _CutiScreenState extends State<CutiScreen>
     );
   }
 
-  // ─── Date Card ─────────────────────────────────────────────────────
   Widget _buildDateCard() {
     final int days = _countDays();
     return _buildSectionCard(
@@ -563,7 +558,6 @@ class _CutiScreenState extends State<CutiScreen>
     );
   }
 
-  // ─── Reason Card ───────────────────────────────────────────────────
   Widget _buildReasonCard() {
     return _buildSectionCard(
       icon: Icons.edit_note_rounded,
@@ -593,7 +587,6 @@ class _CutiScreenState extends State<CutiScreen>
     );
   }
 
-  // ─── Attachment Card ───────────────────────────────────────────────
   Widget _buildAttachmentCard() {
     final bool picked = _docFile != null;
     return _buildSectionCard(
@@ -714,7 +707,6 @@ class _CutiScreenState extends State<CutiScreen>
     );
   }
 
-  // ─── Info Note ─────────────────────────────────────────────────────
   Widget _buildInfoNote() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
@@ -756,7 +748,6 @@ class _CutiScreenState extends State<CutiScreen>
     );
   }
 
-  // ─── Submit Button ─────────────────────────────────────────────────
   Widget _buildSubmitButton() {
     return SizedBox(
       width: double.infinity,
@@ -798,7 +789,6 @@ class _CutiScreenState extends State<CutiScreen>
   }
 }
 
-// ─── Model ─────────────────────────────────────────────────────────
 class _JenisOption {
   const _JenisOption({
     required this.label,

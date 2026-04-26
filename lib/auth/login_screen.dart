@@ -8,7 +8,6 @@ import 'package:sapa_jonusa/api/api.dart';
 import 'package:sapa_jonusa/karyawan/karyawan_screen.dart';
 import 'package:sapa_jonusa/service/fcm_service.dart';
 
-// ─── Warna tema biru (konsisten dengan home screen) ──────────────────────────
 const _kPrimary = Color(0xFF1565C0);
 const _kPrimaryMd = Color(0xFF1976D2);
 const _kPrimaryLt = Color(0xFF42A5F5);
@@ -96,26 +95,19 @@ class _LoginScreenState extends State<LoginScreen>
       final data = json.decode(response.body) as Map<String, dynamic>;
 
       if (response.statusCode == 200) {
-        // ── Simpan token ────────────────────────────────────────────
         await _storage.write(
           key: 'auth_token',
           value: data['access_token'] as String,
         );
-
-        // ── Simpan user_id sebagai string ───────────────────────────
         await _storage.write(
           key: 'user_id',
           value: data['user']['id'].toString(),
         );
-
-        // ── Simpan role ─────────────────────────────────────────────
         await _storage.write(
           key: 'user_role',
           value: data['user']['role'].toString(),
         );
 
-        // ── Simpan seluruh data user sebagai JSON string ────────────
-        // Dibutuhkan oleh job_list_screen.dart, job_screen.dart, dll
         await _storage.write(
           key: 'user_data',
           value: json.encode(data['user']),
@@ -123,10 +115,8 @@ class _LoginScreenState extends State<LoginScreen>
 
         debugPrint('DEBUG USER LOGIN: ${json.encode(data['user'])}');
 
-        // ── Kirim FCM token ke server ────────────────────────────────
         await _sendFcmToken(data['access_token'] as String);
 
-        // ── Navigasi berdasarkan role ────────────────────────────────
         final role = (data['user']['role'] as String).trim().toLowerCase();
 
         if (role == 'admin' || role == 'kepala') {
@@ -175,7 +165,6 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  // ── Kirim FCM token ke server setelah login berhasil ─────────────────────
   Future<void> _sendFcmToken(String authToken) async {
     try {
       final fcmToken = await FcmService.getToken();
@@ -204,10 +193,7 @@ class _LoginScreenState extends State<LoginScreen>
       backgroundColor: _kBg,
       body: Stack(
         children: [
-          // ── Background dekoratif ──────────────────────────────────
           _BackgroundDecor(size: size),
-
-          // ── Konten utama ─────────────────────────────────────────
           SafeArea(
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
@@ -226,12 +212,8 @@ class _LoginScreenState extends State<LoginScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const SizedBox(height: 40),
-
-                          // ── Logo / Icon ─────────────────────────
                           _LogoSection(),
                           const SizedBox(height: 36),
-
-                          // ── Judul ───────────────────────────────
                           const Text(
                             'Selamat Datang',
                             style: TextStyle(
@@ -252,8 +234,6 @@ class _LoginScreenState extends State<LoginScreen>
                             ),
                           ),
                           const SizedBox(height: 36),
-
-                          // ── Form Card ───────────────────────────
                           _FormCard(
                             emailCtrl: _emailController,
                             passwordCtrl: _passwordController,
@@ -266,8 +246,6 @@ class _LoginScreenState extends State<LoginScreen>
                           ),
 
                           const Spacer(),
-
-                          // ── Footer ──────────────────────────────
                           Center(
                             child: Text(
                               'Hubungi admin jika lupa password',
@@ -292,7 +270,6 @@ class _LoginScreenState extends State<LoginScreen>
   }
 }
 
-// ─── Background dekoratif lingkaran ──────────────────────────────────────────
 class _BackgroundDecor extends StatelessWidget {
   final Size size;
   const _BackgroundDecor({required this.size});
@@ -301,7 +278,6 @@ class _BackgroundDecor extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // Lingkaran besar kanan atas
         Positioned(
           top: -size.width * 0.3,
           right: -size.width * 0.2,
@@ -316,7 +292,6 @@ class _BackgroundDecor extends StatelessWidget {
             ),
           ),
         ),
-        // Lingkaran kecil kiri bawah
         Positioned(
           bottom: size.height * 0.05,
           left: -size.width * 0.15,
@@ -331,7 +306,6 @@ class _BackgroundDecor extends StatelessWidget {
             ),
           ),
         ),
-        // Titik-titik dekoratif
         Positioned(
           top: size.height * 0.15,
           right: 28,
@@ -367,7 +341,7 @@ class _DotGrid extends StatelessWidget {
   }
 }
 
-// ─── Logo section ─────────────────────────────────────────────────────────────
+// Logo section
 class _LogoSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -425,7 +399,6 @@ class _LogoSection extends StatelessWidget {
   }
 }
 
-// ─── Form Card ────────────────────────────────────────────────────────────────
 class _FormCard extends StatelessWidget {
   final TextEditingController emailCtrl, passwordCtrl;
   final bool obscurePassword, isLoading;
@@ -463,7 +436,6 @@ class _FormCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Email field ──────────────────────────────────────────
           _FieldLabel(icon: Icons.email_outlined, label: 'Email'),
           const SizedBox(height: 8),
           _InputField(
@@ -473,8 +445,6 @@ class _FormCard extends StatelessWidget {
             prefixIcon: Icons.email_rounded,
           ),
           const SizedBox(height: 20),
-
-          // ── Password field ───────────────────────────────────────
           _FieldLabel(icon: Icons.lock_outline_rounded, label: 'Password'),
           const SizedBox(height: 8),
           _InputField(
@@ -495,17 +465,8 @@ class _FormCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
 
-          // ── Lupa password ─────────────────────────────────────────
-          Align(
-            alignment: Alignment.centerRight,
-            // child: Text(
-            //   'Hubungi Admin',
-            //   style: TextStyle(fontSize: 12, color: _kPrimary, fontWeight: FontWeight.w600),
-            // ),
-          ),
+          Align(alignment: Alignment.centerRight),
           const SizedBox(height: 24),
-
-          // ── Tombol Login ─────────────────────────────────────────
           _LoginButton(isLoading: isLoading, onPressed: onLogin),
         ],
       ),
@@ -607,7 +568,6 @@ class _InputField extends StatelessWidget {
   }
 }
 
-// ─── Tombol Login ─────────────────────────────────────────────────────────────
 class _LoginButton extends StatelessWidget {
   final bool isLoading;
   final VoidCallback onPressed;

@@ -84,7 +84,6 @@ class AttendanceRecord {
   }
 }
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
 class AttendanceHistoryScreen extends StatefulWidget {
   const AttendanceHistoryScreen({super.key});
 
@@ -141,7 +140,6 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen>
     super.dispose();
   }
 
-  // ── API ───────────────────────────────────────────────────────────────────
   Future<void> _fetchHistory() async {
     setState(() {
       _isLoading = true;
@@ -773,7 +771,6 @@ class _AttendanceCard extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: Row(
               children: [
-                // Status IN
                 Expanded(
                   child: _StatusChip(
                     label: 'Status IN',
@@ -783,7 +780,6 @@ class _AttendanceCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                // Status OUT
                 Expanded(
                   child: _StatusChip(
                     label: 'Status OUT',

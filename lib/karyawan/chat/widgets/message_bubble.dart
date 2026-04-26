@@ -1,5 +1,3 @@
-// widgets/message_bubble.dart
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/chat_message.dart';
@@ -81,7 +79,6 @@ class MessageBubble extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ── Pin label ──
                     if (chat.isPinned)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 3),
@@ -105,7 +102,6 @@ class MessageBubble extends StatelessWidget {
                         ),
                       ),
 
-                    // ── Reply preview ──
                     if (chat.parent != null)
                       GestureDetector(
                         onTap: () => onJumpToParent(chat.parentId!),
@@ -153,7 +149,6 @@ class MessageBubble extends StatelessWidget {
                         ),
                       ),
 
-                    // ── Image ──
                     if (chat.type == 'image' && fileUrl.isNotEmpty)
                       ImageBubble(
                         key: ValueKey(fileUrl),
@@ -170,7 +165,6 @@ class MessageBubble extends StatelessWidget {
                         ),
                       ),
 
-                    // ── Video ──
                     if (chat.type == 'video' && fileUrl.isNotEmpty)
                       VideoBubble(
                         key: ValueKey(fileUrl),
@@ -178,12 +172,10 @@ class MessageBubble extends StatelessWidget {
                         token: token,
                       ),
 
-                    // ── Audio ──
                     if ((chat.type == 'audio' || chat.type == 'voice') &&
                         fileUrl.isNotEmpty)
                       AudioBubble(fileUrl: fileUrl, isMe: isMe, token: token),
 
-                    // ── File (PDF, DOC, dll) ──
                     if (chat.type == 'file' && chat.filePath != null)
                       FileBubble(
                         filePath: chat.filePath!,
@@ -192,7 +184,6 @@ class MessageBubble extends StatelessWidget {
                         token: token,
                       ),
 
-                    // ── Text ──
                     if (chat.message != null && chat.message!.isNotEmpty)
                       Padding(
                         padding: EdgeInsets.only(
@@ -212,7 +203,6 @@ class MessageBubble extends StatelessWidget {
             ],
           ),
 
-          // ── Timestamp + status ──
           Padding(
             padding: const EdgeInsets.only(top: 2, left: 4, right: 4),
             child: Row(

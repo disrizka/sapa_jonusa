@@ -8,7 +8,6 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sapa_jonusa/api/api.dart' as Api;
 
-// ─── Design Tokens ─────────────────────────────────────────────────
 const _primary = Color(0xFF1565C0);
 const _primaryTint = Color(0xFFEBF3FF);
 const _primaryBorder = Color(0xFFD8E8FF);
@@ -20,7 +19,6 @@ const _textSub = Color(0xFF4A6B9A);
 const _textHint = Color(0xFFA0BCDA);
 const _border = Color(0xFFD8E8FF);
 const _borderMid = Color(0xFFB5D4F4);
-// ───────────────────────────────────────────────────────────────────
 
 class SakitScreen extends StatefulWidget {
   const SakitScreen({super.key});
@@ -176,7 +174,6 @@ class _SakitScreenState extends State<SakitScreen>
     );
   }
 
-  // ─── BUILD ─────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -212,7 +209,6 @@ class _SakitScreenState extends State<SakitScreen>
     );
   }
 
-  // ─── Header (no progress bar) ──────────────────────────────────────
   Widget _buildHeader(BuildContext context) {
     return Container(
       color: _primary,
@@ -286,7 +282,6 @@ class _SakitScreenState extends State<SakitScreen>
     );
   }
 
-  // ─── Card Shell ────────────────────────────────────────────────────
   Widget _buildSectionCard({
     required IconData icon,
     required String title,
@@ -361,7 +356,6 @@ class _SakitScreenState extends State<SakitScreen>
     );
   }
 
-  // ─── Date Card ─────────────────────────────────────────────────────
   Widget _buildDateCard() {
     return _buildSectionCard(
       icon: Icons.date_range_rounded,
@@ -465,7 +459,6 @@ class _SakitScreenState extends State<SakitScreen>
     );
   }
 
-  // ─── Reason Card ───────────────────────────────────────────────────
   Widget _buildReasonCard() {
     return _buildSectionCard(
       icon: Icons.edit_note_rounded,
@@ -495,7 +488,6 @@ class _SakitScreenState extends State<SakitScreen>
     );
   }
 
-  // ─── Attachment Card ───────────────────────────────────────────────
   Widget _buildAttachmentCard() {
     return _buildSectionCard(
       icon: Icons.attach_file_rounded,
@@ -618,7 +610,6 @@ class _SakitScreenState extends State<SakitScreen>
     );
   }
 
-  // ─── FIX: doc view dengan overflow.ellipsis & no flexible heights ──
   Widget _docPickedView(File file) {
     final fileName = file.path.split('/').last;
     return Padding(
@@ -677,7 +668,6 @@ class _SakitScreenState extends State<SakitScreen>
     );
   }
 
-  // ─── Info Note ─────────────────────────────────────────────────────
   Widget _buildInfoNote() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
@@ -719,7 +709,6 @@ class _SakitScreenState extends State<SakitScreen>
     );
   }
 
-  // ─── Submit Button ─────────────────────────────────────────────────
   Widget _buildSubmitButton() {
     return SizedBox(
       width: double.infinity,

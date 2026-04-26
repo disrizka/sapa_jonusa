@@ -4,7 +4,6 @@ import 'package:url_launcher/url_launcher.dart';
 class PerusahaanScreen extends StatelessWidget {
   const PerusahaanScreen({super.key});
 
-  // Fungsi helper untuk membuka URL/Email
   Future<void> _launchURL(String url) async {
     final Uri uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
@@ -15,12 +14,10 @@ class PerusahaanScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FF), // Abu-abu kebiruan sangat muda
+      backgroundColor: const Color(0xFFF8F9FF),
       body: CustomScrollView(
         slivers: [
-          // Header dengan efek Slivers agar lebih interaktif saat di-scroll
           SliverToBoxAdapter(child: _buildHeader(context)),
-
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 25),
             sliver: SliverList(
@@ -28,7 +25,6 @@ class PerusahaanScreen extends StatelessWidget {
                 _buildSectionTitle('Tentang Perusahaan'),
                 const SizedBox(height: 16),
                 _buildAboutCard(),
-
                 const SizedBox(height: 32),
                 _buildSectionTitle('Visi & Misi'),
                 const SizedBox(height: 16),
@@ -96,7 +92,6 @@ class PerusahaanScreen extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          // Dekorasi Lingkaran Abstrak
           Positioned(
             top: -50,
             right: -50,

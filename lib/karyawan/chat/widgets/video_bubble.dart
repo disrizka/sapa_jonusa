@@ -1,12 +1,9 @@
-// widgets/video_bubble.dart
-
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:video_player/video_player.dart';
 
-// ─── Fullscreen Video Player ─────────────────────────────────────────────────
 class FullscreenVideoPlayer extends StatefulWidget {
   final String url;
   final String? token;
@@ -225,7 +222,6 @@ class _FullscreenVideoPlayerState extends State<FullscreenVideoPlayer> {
   );
 }
 
-// ─── Video Bubble (thumbnail in chat) ────────────────────────────────────────
 class VideoBubble extends StatefulWidget {
   final String url;
   final String? token;
@@ -249,8 +245,6 @@ class _VideoBubbleState extends State<VideoBubble> {
 
   Future<void> _initializeVideo() async {
     try {
-      // Langsung pakai networkUrl — tidak pakai flutter_cache_manager
-      // supaya http://10.0.2.2 (emulator localhost) bisa diakses
       _ctrl = VideoPlayerController.networkUrl(
         Uri.parse(widget.url),
         httpHeaders: {

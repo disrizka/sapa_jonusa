@@ -1,5 +1,3 @@
-// models/chat_message.dart
-
 class ChatMessage {
   final int id;
   final int userId;

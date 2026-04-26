@@ -59,16 +59,15 @@ class _TimScreenState extends State<TimScreen> {
 
   void _filterSearch(String query) {
     setState(() {
-      _filteredUsers =
-          _allUsers
-              .where(
-                (user) =>
-                    user['name'].toLowerCase().contains(query.toLowerCase()) ||
-                    (user['division']?['name'] ?? '').toLowerCase().contains(
-                      query.toLowerCase(),
-                    ),
-              )
-              .toList();
+      _filteredUsers = _allUsers
+          .where(
+            (user) =>
+                user['name'].toLowerCase().contains(query.toLowerCase()) ||
+                (user['division']?['name'] ?? '').toLowerCase().contains(
+                  query.toLowerCase(),
+                ),
+          )
+          .toList();
     });
   }
 
@@ -87,13 +86,10 @@ class _TimScreenState extends State<TimScreen> {
               pinned: true,
               elevation: 0,
               backgroundColor: Colors.indigo.shade800,
-              // centerTitle di sini untuk leading/actions
               centerTitle: true,
               leading: const BackButton(color: Colors.white),
               flexibleSpace: FlexibleSpaceBar(
-                // TAMBAHKAN INI agar teks di dalam FlexibleSpaceBar ke tengah
                 centerTitle: true,
-                // Sesuaikan padding agar benar-benar di tengah secara vertikal saat AppBar mengecil
                 titlePadding: const EdgeInsets.only(bottom: 16),
                 title: const Text(
                   'Direktori Tim',
@@ -151,24 +147,24 @@ class _TimScreenState extends State<TimScreen> {
               ),
             ),
 
-            // Daftar User
             _isLoading
                 ? const SliverFillRemaining(
-                  child: Center(
-                    child: CircularProgressIndicator(color: Colors.indigo),
-                  ),
-                )
+                    child: Center(
+                      child: CircularProgressIndicator(color: Colors.indigo),
+                    ),
+                  )
                 : _filteredUsers.isEmpty
                 ? SliverFillRemaining(child: _buildEmptyState())
                 : SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) => _buildUserCard(_filteredUsers[index]),
-                      childCount: _filteredUsers.length,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) =>
+                            _buildUserCard(_filteredUsers[index]),
+                        childCount: _filteredUsers.length,
+                      ),
                     ),
                   ),
-                ),
             const SliverToBoxAdapter(child: SizedBox(height: 100)),
           ],
         ),
@@ -249,10 +245,8 @@ class _TimScreenState extends State<TimScreen> {
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            // Avatar Circle Modern
             _buildAvatar(name),
             const SizedBox(width: 16),
-            // Info Text
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -266,7 +260,6 @@ class _TimScreenState extends State<TimScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  // Badge Divisi yang Cantik
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
@@ -293,7 +286,6 @@ class _TimScreenState extends State<TimScreen> {
                 ],
               ),
             ),
-            // Email Button
             IconButton(
               icon: const Icon(
                 Icons.alternate_email_rounded,

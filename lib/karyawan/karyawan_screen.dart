@@ -71,8 +71,6 @@ class _KaryawanHomeScreenState extends State<KaryawanHomeScreen>
   Future<void> _fetchNotifications() async {
     try {
       final token = await _storage.read(key: 'auth_token');
-
-      // DEBUG: cek user yang sedang login
       final userRes = await http.get(
         Uri.parse('${Api.baseUrl}/api/user'),
         headers: {
@@ -95,10 +93,8 @@ class _KaryawanHomeScreenState extends State<KaryawanHomeScreen>
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
         int newCount = data['unread_count'] ?? 0;
-
         String title = data['latest_title'] ?? "Sapa Jonusa";
         String message = data['latest_message'] ?? "Ada pesan baru untukmu";
-
         if (newCount > _lastNotifCount) {
           _showNotificationPopup(title, message);
         }
@@ -123,23 +119,21 @@ class _KaryawanHomeScreenState extends State<KaryawanHomeScreen>
           importance: Importance.max,
           priority: Priority.high,
           ticker: 'ticker',
-          icon: '@mipmap/ic_launcher', // Memastikan ikon muncul
+          icon: '@mipmap/ic_launcher',
           channelShowBadge: true,
         );
 
     const NotificationDetails platformChannelSpecifics = NotificationDetails(
       android: androidPlatformChannelSpecifics,
     );
-
     await flutterLocalNotificationsPlugin.show(
-      DateTime.now().millisecond, // ID unik biar gak numpuk
+      DateTime.now().millisecond,
       title,
       body,
       platformChannelSpecifics,
     );
   }
 
-  // ── Bottom Nav Screens ───────────────────────────────────────────────────
   late final List<Widget> _screens = [
     _HomeTab(),
     const _PlaceholderTab(
@@ -150,15 +144,12 @@ class _KaryawanHomeScreenState extends State<KaryawanHomeScreen>
     ProfileScreen(),
   ];
 
-  // ── Helper navigasi dari absen sheet ────────────────────────────────────
   void _goToAbsenPage(Widget screen) async {
     Navigator.pop(context);
     await Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
-    // Refresh HomeTab setelah kembali dari absen screen
     setState(() {});
   }
 
-  // ── Bottom Sheet Absensi ─────────────────────────────────────────────────
   void showAbsenSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -283,7 +274,6 @@ class _KaryawanHomeScreenState extends State<KaryawanHomeScreen>
     );
   }
 
-  // ── Logout ───────────────────────────────────────────────────────────────
   Future<void> _handleLogout() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -485,13 +475,11 @@ class _KaryawanHomeScreenState extends State<KaryawanHomeScreen>
   }
 }
 
-// ─── Home Tab ────────────────────────────────────────────────────────────────
 class _HomeTab extends StatelessWidget {
   const _HomeTab({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Ambil state untuk dapetin jumlah notif dan fungsi fetch
     final mainState = context
         .findAncestorStateOfType<_KaryawanHomeScreenState>();
     final count = mainState?.unreadCount ?? 0;
@@ -503,7 +491,6 @@ class _HomeTab extends StatelessWidget {
           _HeaderSection(
             unreadCount: count,
             onRefresh: () {
-              // Menjalankan fungsi fetch di class utama
               mainState?._fetchNotifications();
             },
           ),
@@ -528,7 +515,7 @@ class _HomeTab extends StatelessWidget {
 
 class _HeaderSection extends StatelessWidget {
   final int unreadCount;
-  final VoidCallback onRefresh; // Ini kunci untuk refresh
+  final VoidCallback onRefresh;
 
   _HeaderSection({
     super.key,
@@ -538,7 +525,6 @@ class _HeaderSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Logika Tanggal
     final now = DateTime.now();
     final days = [
       'Senin',
@@ -584,7 +570,6 @@ class _HeaderSection extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // SISI KIRI: PROFIL
           Row(
             children: [
               Container(
@@ -628,7 +613,6 @@ class _HeaderSection extends StatelessWidget {
             ],
           ),
 
-          // SISI KANAN: IKON LONCENG
           GestureDetector(
             onTap: () async {
               await Navigator.push(
@@ -637,7 +621,6 @@ class _HeaderSection extends StatelessWidget {
                   builder: (context) => const NotificationScreen(),
                 ),
               );
-              // Panggil refresh setelah balik dari halaman notif
               onRefresh();
             },
             child: Stack(
@@ -691,7 +674,6 @@ class _HeaderSection extends StatelessWidget {
   }
 }
 
-// ─── Swipeable Info Cards ─────────────────────────────────────────────────────
 class _SwipeableInfoCards extends StatefulWidget {
   const _SwipeableInfoCards();
 
@@ -715,7 +697,6 @@ class _SwipeableInfoCardsState extends State<_SwipeableInfoCards> {
   }
 }
 
-// ─── Presence Card (REAL API) ─────────────────────────────────────────────────
 class _PresenceCard extends StatefulWidget {
   const _PresenceCard({super.key});
 
@@ -739,7 +720,6 @@ class _PresenceCardState extends State<_PresenceCard> {
     _fetchTodayStatus();
   }
 
-  // ── Ambil status presensi hari ini dari API ──────────────────────────────
   Future<void> _fetchTodayStatus() async {
     setState(() => _isLoading = true);
     try {
@@ -755,7 +735,6 @@ class _PresenceCardState extends State<_PresenceCard> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() {
-          // Format waktu: ambil HH:mm dari "HH:mm:ss"
           final checkIn = data['check_in']?.toString();
           final checkOut = data['check_out']?.toString();
           _checkinTime = checkIn != null && checkIn.length >= 5
@@ -767,7 +746,6 @@ class _PresenceCardState extends State<_PresenceCard> {
         });
       }
     } catch (e) {
-      // Gagal fetch → tampilkan belum absen (safe fallback)
       debugPrint('Error fetch presence: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -795,7 +773,6 @@ class _PresenceCardState extends State<_PresenceCard> {
       ),
       child: Column(
         children: [
-          // ── Header card ──────────────────────────────────────────────────
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             decoration: BoxDecoration(
@@ -831,7 +808,6 @@ class _PresenceCardState extends State<_PresenceCard> {
                   ),
                 ),
                 const Spacer(),
-                // Tombol refresh manual
                 if (!_isLoading)
                   GestureDetector(
                     onTap: _fetchTodayStatus,
@@ -853,16 +829,12 @@ class _PresenceCardState extends State<_PresenceCard> {
               ],
             ),
           ),
-
-          // ── Konten utama ─────────────────────────────────────────────────
           if (_isLoading)
             _buildLoadingState()
           else if (!_hasCheckin && !_hasCheckout)
             _buildNotYetAbsen()
           else
             _buildAbsenContent(),
-
-          // ── Footer info ──────────────────────────────────────────────────
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
@@ -1142,7 +1114,6 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
-// ── TimeBox: hanya tampil, tidak lagi bisa di-tap untuk edit ─────────────────
 class _TimeBox extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -1209,7 +1180,6 @@ class _TimeBox extends StatelessWidget {
   }
 }
 
-// ─── Menu Grid ───────────────────────────────────────────────────────────────
 class _MenuGrid extends StatefulWidget {
   const _MenuGrid();
 
@@ -1248,8 +1218,6 @@ class _MenuGridState extends State<_MenuGrid> {
     }
   }
 
-  // CS = role karyawan + divisi Customer Service
-  // Kepala = role kepala
   bool get _canCreateJob =>
       _userRole == 'kepala' ||
       _userDivision.toLowerCase().contains('customer service');
@@ -1299,8 +1267,6 @@ class _MenuGridState extends State<_MenuGrid> {
         route: AttendanceHistoryScreen(),
       ),
     ];
-
-    // Tambahkan menu "Buat Tugas" hanya untuk CS & Kepala
     if (_canCreateJob) {
       base.add(
         _MenuDef(
@@ -1345,8 +1311,6 @@ class _MenuGridState extends State<_MenuGrid> {
               ),
             ),
           ),
-
-          // Tampilkan shimmer saat loading user data
           if (!_loaded)
             const Center(
               child: Padding(
@@ -1474,7 +1438,6 @@ class _MenuGridItem extends StatelessWidget {
   }
 }
 
-// ─── Absen Option ─────────────────────────────────────────────────────────────
 class _AbsenOption extends StatelessWidget {
   final IconData icon;
   final String label, description;
@@ -1560,7 +1523,6 @@ class _AbsenOption extends StatelessWidget {
   }
 }
 
-// ─── Nav Item ────────────────────────────────────────────────────────────────
 class _NavItem {
   final IconData? icon, activeIcon;
   final String label;
@@ -1571,7 +1533,6 @@ class _NavItem {
   });
 }
 
-// ─── Placeholder Tab ─────────────────────────────────────────────────────────
 class _PlaceholderTab extends StatelessWidget {
   final IconData icon;
   final String label;
