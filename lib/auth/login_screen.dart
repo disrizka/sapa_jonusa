@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:sapa_jonusa/admin/admin_screen.dart';
 import 'package:sapa_jonusa/api/api.dart';
 import 'package:sapa_jonusa/karyawan/karyawan_screen.dart';
@@ -185,6 +186,17 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
+  Future<void> _openWhatsApp() async {
+    final uri = Uri.parse(
+      'https://wa.me/6282211001991?text=Halo%20Admin%2C%20saya%20lupa%20password%20akun%20Jonusa%20saya.',
+    );
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      _showError('Tidak dapat membuka WhatsApp.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -246,12 +258,70 @@ class _LoginScreenState extends State<LoginScreen>
                           ),
 
                           const Spacer(),
+
+                          // ── Lupa Password → WhatsApp ──────────────────────
                           Center(
-                            child: Text(
-                              'Hubungi admin jika lupa password',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: _kSub.withOpacity(0.7),
+                            child: GestureDetector(
+                              onTap: _openWhatsApp,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE8F5E9),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: const Color(
+                                      0xFF25D366,
+                                    ).withOpacity(0.35),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // WhatsApp icon (simple circle)
+                                    Container(
+                                      width: 26,
+                                      height: 26,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFF25D366),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.chat_rounded,
+                                        color: Colors.white,
+                                        size: 14,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    RichText(
+                                      text: const TextSpan(
+                                        style: TextStyle(fontSize: 12),
+                                        children: [
+                                          TextSpan(
+                                            text: 'Lupa password? ',
+                                            style: TextStyle(
+                                              color: Color(0xFF555555),
+                                            ),
+                                          ),
+                                          TextSpan(
+                                            text: 'Hubungi Admin',
+                                            style: TextStyle(
+                                              color: Color(0xFF25D366),
+                                              fontWeight: FontWeight.w800,
+                                              decoration:
+                                                  TextDecoration.underline,
+                                              decorationColor: Color(
+                                                0xFF25D366,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -341,7 +411,6 @@ class _DotGrid extends StatelessWidget {
   }
 }
 
-// Logo section
 class _LogoSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -464,7 +533,6 @@ class _FormCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-
           Align(alignment: Alignment.centerRight),
           const SizedBox(height: 24),
           _LoginButton(isLoading: isLoading, onPressed: onLogin),
