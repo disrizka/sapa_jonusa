@@ -193,7 +193,7 @@ class _LoginScreenState extends State<LoginScreen>
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
-      _showError('Tidak dapat membuka WhatsApp.');
+      await launchUrl(uri, mode: LaunchMode.platformDefault);
     }
   }
 

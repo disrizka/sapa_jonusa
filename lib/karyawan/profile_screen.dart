@@ -564,7 +564,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       _buildInfoRow(
                         icon: Icons.developer_mode_rounded,
                         label: 'Build',
-                        value: 'Notify Mobile',
+                        value: 'Sapa Jonusa',
                         iconColor: _kSub,
                       ),
                     ],
