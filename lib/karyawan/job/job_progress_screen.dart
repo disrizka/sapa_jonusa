@@ -6,6 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:sapa_jonusa/service/job_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:video_player/video_player.dart';
+import 'package:chewie/chewie.dart';
 
 const _kPrimary = Color(0xFF1565C0);
 const _kAccent = Color(0xFF0D47A1);
@@ -17,6 +19,100 @@ const _kRed = Color(0xFFEF4444);
 const _kAmber = Color(0xFFF59E0B);
 const _kOrange = Color(0xFFF97316);
 
+// ── Video Player Widget ───────────────────────────────────────────────────────
+class _VideoPlayerWidget extends StatefulWidget {
+  final String videoUrl;
+  const _VideoPlayerWidget({required this.videoUrl});
+
+  @override
+  State<_VideoPlayerWidget> createState() => _VideoPlayerWidgetState();
+}
+
+class _VideoPlayerWidgetState extends State<_VideoPlayerWidget> {
+  late VideoPlayerController _controller;
+  ChewieController? _chewieController;
+  bool _initialized = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  Future<void> _init() async {
+    try {
+      _controller = VideoPlayerController.networkUrl(
+        Uri.parse(widget.videoUrl),
+      );
+      await _controller.initialize();
+      _chewieController = ChewieController(
+        videoPlayerController: _controller,
+        autoPlay: false,
+        looping: false,
+        aspectRatio: _controller.value.aspectRatio,
+      );
+      if (mounted) setState(() => _initialized = true);
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _chewieController?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_error != null) {
+      return Container(
+        height: 120,
+        decoration: BoxDecoration(
+          color: Colors.red.shade50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.red.shade200),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.red),
+              const SizedBox(height: 4),
+              Text(
+                'Gagal memuat video',
+                style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (!_initialized) {
+      return Container(
+        height: 120,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: SizedBox(
+        height: 220,
+        child: Chewie(controller: _chewieController!),
+      ),
+    );
+  }
+}
+
+// ── Main Screen ───────────────────────────────────────────────────────────────
 class JobProgressScreen extends StatefulWidget {
   final Job job;
   const JobProgressScreen({super.key, required this.job});
@@ -128,6 +224,7 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
   }
 
   String _formatElapsed() => _formatDuration(_elapsed);
+
   Future<void> _loadCurrentUser() async {
     try {
       final allData = await _storage.readAll();
@@ -186,7 +283,6 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
       ..sort((a, b) => a.stepNumber.compareTo(b.stepNumber));
   }
 
-  // Submit komentar
   Future<void> _submitComment() async {
     final text = _commentCtrl.text.trim();
     if (text.isEmpty || _sendingComment) return;
@@ -249,7 +345,6 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
     }
   }
 
-  // step_requirements
   Future<void> _submit() async {
     if (_uploading) return;
 
@@ -274,7 +369,6 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
     }
 
     final int step = _currentStepInput;
-
     final req = _job.requirementForStep(step);
     final bool reqDesc = req?.reqDesc ?? false;
     final bool reqPhoto = req?.reqPhoto ?? false;
@@ -516,7 +610,6 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
     return result == true;
   }
 
-  // Picker
   Future<void> _pickPhoto() async {
     final src = await showModalBottomSheet<ImageSource>(
       context: context,
@@ -575,7 +668,6 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
     if (picked != null) setState(() => _video = File(picked.path));
   }
 
-  //  BUILD
   @override
   Widget build(BuildContext context) {
     if (_isLoadingUser) {
@@ -619,15 +711,12 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
                 _buildTimerCard(isCompleted),
                 const SizedBox(height: 16),
               ],
-
               _buildHeaderCard(isCompleted),
               const SizedBox(height: 24),
-
               if (_job.clientName != null || _job.location != null) ...[
                 _buildClientLocationCard(),
                 const SizedBox(height: 24),
               ],
-              // Riwayat Pengerjaan
               const Text(
                 'Riwayat Pengerjaan',
                 style: TextStyle(
@@ -648,9 +737,7 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
                 const SizedBox(height: 8),
                 _buildTrackersCompletionSummary(),
               ],
-
               const SizedBox(height: 24),
-
               if (!isCompleted && _isMyJob && _job.currentStep != null) ...[
                 const Text(
                   'Input Progress Tahap Berikutnya',
@@ -663,15 +750,11 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
                 const SizedBox(height: 12),
                 _buildProgressForm(),
               ],
-
               if (isCompleted && _job.completionReason != null) ...[
                 const SizedBox(height: 8),
                 _buildCompletionReport(),
               ],
-
               const SizedBox(height: 24),
-
-              // Komentar
               const Text(
                 'Diskusi & Komentar',
                 style: TextStyle(
@@ -690,7 +773,6 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
     );
   }
 
-  // TIMER CARD
   Widget _buildTimerCard(bool isCompleted) {
     final timerColor = _isOverdue ? _kRed : _kGreen;
     final bgColor = _isOverdue
@@ -848,7 +930,6 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
     return '$h:$m:$s';
   }
 
-  // Client & Location Card
   Widget _buildClientLocationCard() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -945,7 +1026,6 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
     );
   }
 
-  // ── Trackers Completion Summary (FIX: actual_duration safe cast) ──────────
   Widget _buildTrackersCompletionSummary() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
@@ -1021,7 +1101,6 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
     );
   }
 
-  // Completion Report
   Widget _buildCompletionReport() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1117,7 +1196,6 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
     );
   }
 
-  // Viewer Banner
   Widget _buildViewerBanner() {
     return Container(
       width: double.infinity,
@@ -1311,7 +1389,6 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      // FIX: tampilkan stepName dari step_requirements jika tersedia
                       Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
@@ -1387,6 +1464,7 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
     );
   }
 
+  // ── Tracker Tile dengan Video Player ─────────────────────────────────────
   Widget _buildTrackerTile(JobTracker t) {
     final req = _job.requirementForStep(t.stepNumber);
     final String stepName = req?.stepName ?? 'Tahap ${t.stepNumber}';
@@ -1452,6 +1530,8 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Divider(height: 20),
+
+                  // Foto
                   if (t.photoUrl != null) ...[
                     const Text(
                       'Bukti Foto:',
@@ -1469,10 +1549,19 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
                         width: double.infinity,
                         height: 180,
                         fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          height: 180,
+                          color: Colors.grey.shade100,
+                          child: const Center(
+                            child: Icon(Icons.broken_image, color: Colors.grey),
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
                   ],
+
+                  // Video — langsung pakai VideoPlayerWidget
                   if (t.videoUrl != null) ...[
                     const Text(
                       'Bukti Video:',
@@ -1483,38 +1572,10 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    InkWell(
-                      onTap: () async {
-                        final uri = Uri.parse(t.videoUrl!);
-                        if (await canLaunchUrl(uri)) {
-                          await launchUrl(
-                            uri,
-                            mode: LaunchMode.externalApplication,
-                          );
-                        }
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: _kPrimary.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.play_circle_fill, color: _kPrimary),
-                            SizedBox(width: 12),
-                            Text(
-                              'Putar Video Bukti',
-                              style: TextStyle(
-                                color: _kPrimary,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                    _VideoPlayerWidget(videoUrl: t.videoUrl!),
+                    const SizedBox(height: 12),
                   ],
+
                   Text(
                     'Selesai pada: ${t.createdAt ?? "-"}',
                     style: TextStyle(fontSize: 10, color: Colors.grey[400]),
@@ -1615,7 +1676,6 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
             ),
           ),
           const SizedBox(height: 16),
-
           Row(
             children: [
               Expanded(
@@ -1643,7 +1703,6 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
               ),
             ],
           ),
-
           if (reqPhoto || reqVideo) ...[
             const SizedBox(height: 6),
             Row(
@@ -1682,7 +1741,6 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
               ],
             ),
           ],
-
           if (isLast && _isOverdue) ...[
             const SizedBox(height: 12),
             Container(
@@ -1706,10 +1764,7 @@ class _JobProgressScreenState extends State<JobProgressScreen> {
               ),
             ),
           ],
-
           const SizedBox(height: 16),
-
-          // Submit button
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
