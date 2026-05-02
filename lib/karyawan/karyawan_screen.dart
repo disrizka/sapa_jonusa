@@ -18,6 +18,7 @@ import 'package:sapa_jonusa/karyawan/perusahaan_screen.dart';
 import 'package:sapa_jonusa/karyawan/profile_screen.dart';
 import 'package:sapa_jonusa/karyawan/sakit_screen.dart';
 import 'package:sapa_jonusa/karyawan/tim_screen.dart';
+import 'package:sapa_jonusa/service/navigation_service.dart'; // ← TAMBAH INI
 import "notification_screen.dart";
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:sapa_jonusa/main.dart';
@@ -59,6 +60,11 @@ class _KaryawanHomeScreenState extends State<KaryawanHomeScreen>
     _fetchNotifications();
     _notifTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
       if (mounted) _fetchNotifications();
+    });
+
+    // ── Proses notifikasi pending dari app terminated ──────────────────────
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NavigationService.processPendingRoute();
     });
   }
 
@@ -612,7 +618,6 @@ class _HeaderSection extends StatelessWidget {
               ),
             ],
           ),
-
           GestureDetector(
             onTap: () async {
               await Navigator.push(
@@ -1278,7 +1283,6 @@ class _MenuGridState extends State<_MenuGrid> {
         ),
       );
     }
-
     return base;
   }
 
@@ -1334,7 +1338,6 @@ class _MenuGridState extends State<_MenuGrid> {
               itemCount: _menus.length,
               itemBuilder: (_, i) => _MenuGridItem(menu: _menus[i]),
             ),
-
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,

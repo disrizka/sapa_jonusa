@@ -17,19 +17,15 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
   await Firebase.initializeApp();
   await [
     Permission.location,
     Permission.camera,
     Permission.notification,
   ].request();
-
   await FcmService.init();
   await initializeDateFormatting('id_ID', null);
-
   runApp(const MyApp());
 }
 
@@ -41,6 +37,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Sapa Jonusa',
       debugShowCheckedModeBanner: false,
+      navigatorKey: navigatorKey,
       theme: ThemeData(
         useMaterial3: true,
         fontFamily: 'Roboto',
